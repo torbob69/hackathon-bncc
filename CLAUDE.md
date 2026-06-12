@@ -110,32 +110,45 @@ Loans only to **registered members** of the borrower's koperasi → operates as 
 
 ## 4. Database Schema (MySQL, multi-tenant)
 
-All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distributors`, `financing_partners`, and `users` (distributor/platform_admin).
+All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distributors`, `financing_partners`, and `users` (distributor/financing_partner/platform_admin).
+
+### Type & money conventions (mandatory — fintech correctness)
+- **Money** = `DECIMAL(18,2)` (SQLAlchemy `Numeric(18,2, asdecimal=True)`). **Never `FLOAT`.** Applies to every amount/balance/price/fee column.
+- **Weight** = `DECIMAL(10,3)` (gram precision). Scores/rates = `DECIMAL(5,2)`.
+- **Timestamps** = `DATETIME` stored in **UTC** (engine `time_zone=+00:00`); convert to WIB in the frontend only. Calendar-only fields (e.g. `due_date`) = `DATE`.
+- **IDs** = `BIGINT`. **`nik`** = `VARCHAR(16)` `UNIQUE` (`CHECK nik REGEXP '^[0-9]{16}$'`). **QR tokens** = `VARCHAR(512)` (JWTs exceed 255).
+- Enums kept as MySQL `ENUM` (adding a value needs an Alembic migration). Requires **MySQL 8.0+** (for `CHECK` enforcement) — verify on Railway.
 
 | Table | Key columns |
 |---|---|
 | **koperasi** *(tenant root)* | id, name, type, address, region, `xendit_account_id`, created_at |
-| **users** | id, `koperasi_id` (nullable), role ENUM(`farmer`,`manager`,`admin`,`distributor`,`financing_partner`,`platform_admin`), name, email (unique), phone, password_hash, status |
-| **farmers** | user_id (FK), koperasi_id, nik, address, `ktp_photo_url`, credit_tier, status(`pending`/`active`), verified_by, verified_at |
-| **distributors** | user_id (FK), company_name, address, phone |
-| **commodities** | id, koperasi_id, name, unit(`kg`), `pihps_price`, `current_stock_kg`, cold_storage_location |
-| **harvest_intakes** | id, koperasi_id, farmer_id, commodity_id, weight_kg, `qr_token`, status(`pending`/`confirmed`/`rejected`), `estimated_value`, `exceeds_pool_flag`, reject_reason, price_per_kg, total_paid, confirmed_by, confirmed_at, created_at |
+| **users** | id, `koperasi_id` (FK, nullable), role ENUM(`farmer`,`manager`,`admin`,`distributor`,`financing_partner`,`platform_admin`), name, email (**unique**), phone, password_hash, status. *`koperasi_id` is set for **manager/admin only**; for farmers it is null (koperasi comes from `farmers.koperasi_id` — single source of truth); null for distributor/financing_partner/platform_admin* |
+| **farmers** | user_id (FK, **unique**), **koperasi_id (FK — canonical tenant for a farmer)**, `nik` (unique), address, `ktp_photo_url`, credit_tier, status(`pending`/`active`), verified_by, verified_at |
+| **distributors** | user_id (FK, **unique**), company_name, address *(phone removed — use `users.phone`)* |
+| **commodities** | id, koperasi_id, name, unit(`kg`), `pihps_price`, `current_stock_kg` *(cached from `stock_movements`; update in same txn)*, cold_storage_location |
+| **harvest_intakes** | id, koperasi_id, farmer_id, commodity_id, weight_kg, `qr_token` (unique), status(`pending`/`confirmed`/`rejected`/`cancelled`), `estimated_value`, `exceeds_pool_flag`, reject_reason, price_per_kg *(system-set from `commodities.pihps_price` at confirm — never from request)*, total_paid, confirmed_by, confirmed_at, created_at |
 | **stock_movements** | id, koperasi_id, commodity_id, direction(`in`/`out`), weight_kg, reference_type, reference_id, qr_token, created_by, created_at |
-| **orders** | id, koperasi_id, distributor_id, status, fulfillment_type(`delivery`/`pickup`), delivery_address, subtotal, `platform_fee`, total, `xendit_invoice_id`, `payment_channel`(`qris`/`va`), payment_status, `pickup_qr_token`, created_at |
-| **order_items** | id, order_id, commodity_id, weight_kg, price_per_kg, line_total |
-| **ledger_entries** | id, koperasi_id, `pool`(`marginal_profit`/`loan`), type(`sale_settlement`/`farmer_payment`/`platform_fee`/`apbn_grant`/`loan_disbursement`/`loan_repayment`), amount, direction(`credit`/`debit`), reference_type, reference_id, `xendit_disbursement_id`, balance_after, created_at |
-| **koperasi_funds** | koperasi_id (PK), `marginal_profit_pool_balance`, `loan_pool_balance`, updated_at |
-| **loans** | id, koperasi_id, farmer_id, principal, purpose(`benih`/`pupuk`/`alat`), installment_months, interest_rate, status(`pending`/`active`/`past_due`/`paid`/`rejected`/`seized`), credit_score, limit_at_application, approved_by, disbursed_at, `xendit_disbursement_id`, created_at |
-| **loan_installments** | id, loan_id, due_date, amount_due, amount_paid, status(`unpaid`/`paid`/`late`), paid_at |
-| **loan_status_history** | id, loan_id, old_status, new_status, changed_by, reason, created_at |
-| **credit_scores** | id, farmer_id, score, tier, harvest_weight_6mo, txn_count, active_arrears, computed_at |
-| **audit_log** *(immutable)* | id, koperasi_id, actor_user_id, action, entity_type, entity_id, before_json, after_json, ip, created_at |
-| **financing_partners** | id, name, contact_email |
-| **data_share_grants** | id, koperasi_id, financing_partner_id, scope_json, date_range_start, date_range_end, status(`active`/`revoked`), granted_by, created_at |
+| **orders** | id, koperasi_id, distributor_id, status(`pending`/`paid`/`fulfilled`/`cancelled`), fulfillment_type(`delivery`/`pickup`), delivery_address, subtotal, `platform_fee`, total, `xendit_invoice_id` (**unique**), `payment_channel`(`qris`/`va`), payment_status, `pickup_qr_token` (unique, `VARCHAR(512)`), created_at |
+| **order_items** | id, order_id (FK), **koperasi_id (FK — tenant-safe direct queries)**, commodity_id, weight_kg, price_per_kg, line_total. *Service must assert `commodity.koperasi_id == orders.koperasi_id`* |
+| **ledger_entries** | id, koperasi_id, `pool`(`marginal_profit`/`loan`), type(`sale_settlement`/`farmer_payment`/`platform_fee`/`apbn_grant`/`loan_disbursement`/`loan_repayment`/`refund`), amount, direction(`credit`/`debit`), reference_type, reference_id, `xendit_disbursement_id` (unique-where-not-null), **`external_idempotency_key` VARCHAR(128) (unique-where-not-null)**, balance_after *(display snapshot only — never the source of truth for checks)*, created_at. **`CHECK chk_pool_type`** binds `pool`↔`type` (see invariant) |
+| **koperasi_funds** | koperasi_id (PK, FK), `marginal_profit_pool_balance`, `loan_pool_balance`, updated_at. *Authoritative cached balance; every read for a sufficiency check uses `SELECT … FOR UPDATE` inside the ledger-write txn* |
+| **loans** | id, koperasi_id, farmer_id, principal, purpose(`benih`/`pupuk`/`alat`), installment_months, interest_rate, status(`pending`/`active`/`past_due`/`paid`/`rejected`/`seized`), credit_score, limit_at_application, approved_by, disbursed_at, `xendit_disbursement_id` (**unique**), created_at |
+| **loan_installments** | id, loan_id (FK), **koperasi_id (FK)**, due_date (`DATE`), amount_due, amount_paid, status(`unpaid`/`paid`/`late`), `ledger_entry_id` (FK, nullable — links repayment), paid_at |
+| **loan_status_history** | id, loan_id (FK), **koperasi_id (FK)**, old_status, new_status, changed_by, reason, created_at |
+| **credit_scores** | id, farmer_id (FK), **koperasi_id (FK)**, score, tier, harvest_weight_6mo, txn_count, active_arrears, computed_at |
+| **audit_log** *(append-only)* | id, koperasi_id, actor_user_id, action, entity_type, entity_id, before_json, after_json, ip, created_at. *Enforced append-only: app DB user has INSERT/SELECT only + `BEFORE UPDATE/DELETE` trigger raises SIGNAL* |
+| **financing_partners** | id, **`user_id` (FK→users, unique — login bridge for report auth)**, name, contact_email |
+| **data_share_grants** | id, koperasi_id, financing_partner_id (FK), scope_json *(validated against a Pydantic allow-list — never trusted raw)*, date_range_start, date_range_end, status(`active`/`revoked`), granted_by, created_at |
+| **xendit_webhook_events** *(idempotency inbox)* | id, `event_id` VARCHAR(128) (**unique**), event_type, reference_type, reference_id, payload JSON, status(`received`/`processed`/`duplicate`), received_at, processed_at |
+| **notifications** | id, koperasi_id, user_id (FK), type(`intake_flagged`/`intake_confirmed`/`intake_rejected`/`loan_status`), reference_type, reference_id, message, is_read (default false), created_at |
 
-**Pool invariant:** `apbn_grant` / `loan_disbursement` / `loan_repayment` entries only touch the `loan` pool; `sale_settlement` / `farmer_payment` / `platform_fee` only touch `marginal_profit`. `koperasi_funds` balances are derived from `ledger_entries`.
+**Pool invariant (DB-enforced):** `apbn_grant`/`loan_disbursement`/`loan_repayment` entries only touch the `loan` pool; `sale_settlement`/`farmer_payment`/`platform_fee`/`refund` only touch `marginal_profit`. Enforced by `ledger_entries.chk_pool_type` CHECK + service layer. `koperasi_funds` is the authoritative cached balance; a daily reconcile job recomputes from `ledger_entries` and alerts on drift.
 
-**Key indexes:** every `koperasi_id`; `users.email` unique; `harvest_intakes.qr_token` & `orders.pickup_qr_token` unique; `loan_installments(loan_id, due_date)`; `ledger_entries(koperasi_id, created_at)`.
+**Concurrency rule:** any pool sufficiency check (harvest confirm against Marginal Profit Pool; loan disburse against Loan Pool) must `SELECT … FOR UPDATE` the `koperasi_funds` row, check, write the `ledger_entry`, and update the balance — all in **one transaction**. This serializes per-koperasi and prevents overdraft.
+
+**Idempotency rule:** every Xendit webhook lands in `xendit_webhook_events` first (`INSERT … ON DUPLICATE KEY` on `event_id`); skip if already present. Ledger writes from webhooks carry `external_idempotency_key` so a replay can't double-post.
+
+**Key indexes:** every `koperasi_id`; `users.email` unique; `farmers.nik` unique; `harvest_intakes.qr_token` & `orders.pickup_qr_token` unique; `orders.xendit_invoice_id` unique; `loans.xendit_disbursement_id` unique; `ledger_entries.external_idempotency_key` unique-where-not-null; `xendit_webhook_events.event_id` unique; `loan_installments(loan_id, due_date)`; `credit_scores(farmer_id, computed_at DESC)`; `ledger_entries(koperasi_id, created_at)`.
 
 ---
 
@@ -209,30 +222,36 @@ Ordered by **dependency + ascending complexity** (easiest first). Each phase sho
 | # | Phase | Goal / Deliverables | Tables / Modules | Done when |
 |---|---|---|---|---|
 | 1 | **Scaffold & config** | FastAPI app factory, settings loading `MODE`, CORS, `/health` endpoint, requirements.txt | `main.py`, `core/config.py` | `GET /health` returns 200; `MODE` read from env |
-| 2 | **DB & migrations setup** | SQLAlchemy engine/session, `Base`, Alembic init, Railway MySQL connection | `db/`, `alembic/` | empty migration runs against MySQL |
-| 3 | **Core models + first migration** | `koperasi`, `users`, `koperasi_funds`, base enums; first real migration | `models/` | tables exist in DB |
+| 2 | **DB & migrations setup** | SQLAlchemy engine/session (UTC `time_zone=+00:00`), `Base`, Alembic init, Railway MySQL connection. **Verify MySQL is 8.0+** (CHECK constraints) and provision a **restricted app DB user** (no privileges on `audit_log` beyond INSERT/SELECT — set in phase 15) | `db/`, `alembic/` | empty migration runs; `SELECT VERSION()` ≥ 8.0 |
+| 3 | **Core models + first migration** | `koperasi`, `users`, `farmers`, `financing_partners` (**with `user_id` FK**), `koperasi_funds`, base enums. **All money cols `Numeric(18,2)`, weights `Numeric(10,3)`, `nik VARCHAR(16) UNIQUE`** — verify before migrating. `users.koperasi_id` for manager/admin only | `models/` | tables exist with correct DECIMAL types; no FLOAT money cols |
 | 4 | **Auth** | JWT signup/login, password hashing (bcrypt), role enum on token | `core/security.py`, `api/auth.py` | login returns a JWT with role + koperasi_id |
-| 5 | **Tenant scoping + RBAC** | `get_current_user`, tenant-scope dependency, role guards | `core/deps.py` | a query without tenant filter is impossible by convention; cross-tenant access blocked |
-| 6 | **Koperasi & farmer onboarding** | koperasi CRUD; farmer signup with KTP photo → **Cloudinary**; admin manual validation | `api/koperasi.py`, `api/farmers.py`, `services/storage.py` | farmer signs up, KTP uploads, admin approves → `active` |
-| 7 | **Commodities & catalog** | commodity CRUD, PIHPS price field, `current_stock_kg` | `api/commodities.py` | koperasi manages its own catalog (tenant-scoped) |
-| 8 | **Ledger & two-pool funds** | `ledger_entries` + `koperasi_funds`; pool invariant; `apbn_grant` credit to Loan Pool; balances derived from ledger | `models/ledger.py`, `services/ledger.py` | APBN grant credits Loan Pool only; balances reconcile |
+| 5 | **Tenant scoping + RBAC** | `get_current_user`, tenant-scope dependency (farmer tenant = `farmers.koperasi_id`), role guards | `core/deps.py` | cross-tenant access blocked; no domain query runs unscoped |
+| 6 | **Koperasi & farmer onboarding** | koperasi CRUD; farmer signup with KTP photo → **Cloudinary**; admin manual validation; **`notifications` table** (used from phase 11) | `api/koperasi.py`, `api/farmers.py`, `services/storage.py` | farmer signs up, KTP uploads, admin approves → `active` |
+| 7 | **Commodities & catalog** | commodity CRUD, PIHPS price, `current_stock_kg` (updated in same txn as stock movements) | `api/commodities.py` | koperasi manages its own catalog (tenant-scoped) |
+| 8 | **Ledger & two-pool funds** | `ledger_entries` (+ **`chk_pool_type` CHECK**, `external_idempotency_key` unique) + `koperasi_funds`; **`SELECT … FOR UPDATE` helper** for pool checks; `apbn_grant` credits Loan Pool; reconcile = ledger sum | `models/ledger.py`, `services/ledger.py` | APBN grant credits Loan Pool only; CHECK rejects wrong pool/type; concurrent debits can't overdraft |
 | 9 | **Payment provider abstraction** | `PaymentProvider` interface + `MockXenditProvider` (instant paid, fake disbursement, no QRIS cap); `XenditProvider` stub | `payments/` | mock returns deterministic results; selected by `MODE` |
-| 10 | **Harvest intake + signed QR** | intake create, **JWT-signed QR** generation, `estimated_value`, status `pending`; farmer sees live status | `api/intakes.py`, `services/qr.py` | farmer creates intake, gets signed QR, status visible |
-| 11 | **Manager confirm + buy-decision** | re-weigh confirm/reject, **Marginal Profit Pool check + over-pool alert**, stock movement (in), pay farmer via provider + ledger entry | `services/intake.py`, `models/stock_movements.py` | confirm pays farmer from Marginal Profit Pool, stock & ledger updated; reject sets status |
-| 12 | **Marketplace orders + checkout** | order/order_items, Xendit **split payment**, **QRIS ≤10jt → VA fallback**, 1–2% platform fee, webhook handling (mock-simulated in dev) | `api/orders.py`, `services/orders.py` | distributor checks out, fee split recorded, payment marked paid |
-| 13 | **Fulfillment + pickup QR** | delivery vs pickup; **signed pickup QR** scan validation (asli/palsu); stock movement (out) | `services/fulfillment.py` | manager scans valid pickup QR → goods released, stock reduced |
-| 14 | **Loans + credit scoring** | credit score (SQL aggregation), tier/limit, eligibility (**Loan Pool check**), admin audit, disburse via provider, installments, `loan_status_history`, past-due/seize | `api/loans.py`, `services/credit.py`, `services/loans.py` | full loan lifecycle works; loans only from Loan Pool |
-| 15 | **Audit, anomaly & reporting** | append-only `audit_log`, kasir anomaly/fraud detection, **portfolio reporting scoped by `data_share_grants`** | `services/audit.py`, `api/reports.py` | audit log immutable; financing partner sees only granted scope |
+| 10 | **Harvest intake + signed QR** | intake create, **JWT-signed QR**, `estimated_value`, status `pending`; farmer sees live status | `api/intakes.py`, `services/qr.py` | farmer creates intake, gets signed QR, status visible |
+| 11 | **Manager confirm + buy-decision** | re-weigh confirm/reject; **pool check via `FOR UPDATE`** + over-pool alert → **write `notification`**; `price_per_kg` system-set from PIHPS; stock movement (in); pay farmer via provider + ledger entry — **all one txn** | `services/intake.py`, `models/stock_movements.py` | confirm pays farmer atomically from Marginal Profit Pool; over-pool intake flags + notifies; reject sets status |
+| 12 | **Marketplace orders + checkout** | order/`order_items` (**both carry `koperasi_id`**), Xendit **split payment**, **QRIS ≤10jt → VA fallback**, 1–2% platform fee, **`xendit_webhook_events` idempotency inbox** (`xendit_invoice_id` unique); webhook mock-simulated in dev | `api/orders.py`, `services/orders.py`, `payments/` | checkout records split fee; a replayed webhook does NOT double-post |
+| 13 | **Fulfillment + pickup QR** | delivery vs pickup; **signed pickup QR** scan validation (asli/palsu); stock movement (out); `cancelled`/`refund` path | `services/fulfillment.py` | manager scans valid pickup QR → goods released, stock reduced |
+| 14 | **Loans + credit scoring** | credit score (SQL aggregation, indexed `credit_scores`); tier/limit; eligibility (**Loan Pool check via `FOR UPDATE`**); admin audit; disburse via provider (idempotent); installments + `loan_status_history` (**both carry `koperasi_id`**); past-due/seize | `api/loans.py`, `services/credit.py`, `services/loans.py` | full lifecycle works; loans only from Loan Pool; no concurrent over-disburse |
+| 15 | **Audit, anomaly & reporting** | **append-only `audit_log`** (revoke UPDATE/DELETE from app user + BEFORE UPDATE/DELETE trigger); kasir anomaly/fraud detection; **portfolio reporting scoped by `data_share_grants`** (auth: `JWT.user_id → financing_partners → grant`; fields whitelisted from `scope_json`) | `services/audit.py`, `api/reports.py` | audit rows can't be updated/deleted; partner sees ONLY granted scope |
+
+> **Cross-cutting (applies from the phase each table appears):** money is `DECIMAL`; every pool check locks `koperasi_funds` `FOR UPDATE` in the same txn as the ledger write; every Xendit webhook is idempotent via `xendit_webhook_events` + `external_idempotency_key`. See §8.
 
 > Build the matching frontend slice right after each backend phase where it makes sense — but a working vertical slice always beats half-finished features (graded on low-bug + real implementation).
 
 ---
 
 ## 8. Conventions for Claude Code
-- **Never query a domain table without a `koperasi_id` tenant filter.** Isolation is a graded requirement.
-- **Enforce the pool invariant** in services — money for harvest comes only from Marginal Profit Pool; loans only from Loan Pool (APBN).
-- **Prices are PIHPS-locked**; managers/kasir cannot edit prices — keep that path closed.
-- **All money movements write a `ledger_entry`**; balances derive from the ledger, not ad-hoc updates.
-- **`audit_log` is append-only** — no updates/deletes.
+- **Never query a domain table without a `koperasi_id` tenant filter.** Isolation is a graded requirement. A farmer's canonical tenant is `farmers.koperasi_id` (not `users.koperasi_id`).
+- **Money = `DECIMAL`, never `FLOAT`.** All amounts/weights use the type conventions in §4. Verify every SQLAlchemy model before the first migration.
+- **Pool sufficiency checks lock first:** `SELECT … FOR UPDATE` the `koperasi_funds` row, check, write `ledger_entry`, update balance — one transaction. Never read a pool balance and write in separate statements.
+- **Enforce the pool invariant** — harvest only from Marginal Profit Pool; loans only from Loan Pool (APBN). Backed by the `chk_pool_type` CHECK; don't rely on it alone.
+- **All money movements write a `ledger_entry`**; `koperasi_funds` is the cached balance, `balance_after` is display-only — never the source of truth for checks.
+- **Xendit webhooks are idempotent:** land every event in `xendit_webhook_events` first; ledger writes carry `external_idempotency_key`. A replay must never double-post.
+- **Prices are PIHPS-locked**; `price_per_kg` is system-set from `commodities.pihps_price` at confirm — never accepted from a request payload.
+- **`audit_log` is append-only** — enforced by DB-user privileges (INSERT/SELECT only) + a BEFORE UPDATE/DELETE trigger, not just convention.
+- **Financing-partner report auth** resolves `JWT.user_id → financing_partners.user_id → data_share_grants`; never serve report fields outside the grant's `scope_json`.
 - **All payment calls go through `PaymentProvider`** — never call Xendit directly from a route, so `MODE=dev` mocking stays intact.
 - Match existing code's style as it grows; keep business logic in `services/`, not routers.
