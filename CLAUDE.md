@@ -163,38 +163,68 @@ All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distri
 
 ---
 
-## 6. Planned Repo Structure
+## 6. Repo Structure
 ```
 /
 ├── CLAUDE.md
+├── .env.example            # template — real .env is gitignored, never commit secrets
 ├── context/                # planning docs (source of truth)
 ├── backend/                # FastAPI
 │   ├── app/
-│   │   ├── main.py
-│   │   ├── core/           # config (MODE), security/JWT, tenant dependency
-│   │   ├── models/         # SQLAlchemy
-│   │   ├── schemas/        # Pydantic
-│   │   ├── api/            # routers per domain
-│   │   ├── services/       # business logic (pools, scoring, ledger)
-│   │   └── payments/       # PaymentProvider + Xendit/Mock impls
-│   ├── alembic/            # migrations
+│   │   ├── main.py             # app factory, router registration, health check
+│   │   ├── core/              # config (MODE/settings), security/JWT, deps (tenant scope, RBAC)
+│   │   ├── db/                # engine, session, Base
+│   │   ├── models/            # SQLAlchemy models (one module per domain)
+│   │   ├── schemas/           # Pydantic request/response models
+│   │   ├── api/               # routers per domain (auth, koperasi, farmers, commodities,
+│   │   │                      #   intakes, orders, loans, ledger, reports)
+│   │   ├── services/          # business logic — pools, ledger, credit scoring, scoring guards
+│   │   └── payments/          # PaymentProvider interface + XenditProvider + MockXenditProvider
+│   ├── alembic/               # migrations
+│   ├── tests/
 │   └── requirements.txt
-└── frontend/               # React + Tailwind (Vite)
-    └── src/{pages,components,api,hooks}
+└── frontend/               # React + Tailwind (Vite), mobile-first PWA — ONE unified app
+    └── src/
+        ├── routes/
+        │   ├── farmer/        # /app/farmer/*       — intake, my-status, loans
+        │   ├── manager/       # /app/manager/*      — confirm queue, stock, pickup scan
+        │   ├── admin/         # /app/admin/*        — signup validation, loan audit, funds
+        │   └── marketplace/   # /marketplace/*      — distributor: browse, checkout, orders
+        ├── components/        # shared: QRScanner, MoneyDisplay, DataTable, StatusBadge…
+        ├── layouts/           # RoleLayout selects nav/shell by JWT role
+        ├── guards/            # RequireRole route guard (UX gate only — backend is the real boundary)
+        ├── api/               # shared API client (auth header, tenant context)
+        └── hooks/
 ```
+**Frontend decision:** one unified app with **role-scoped route groups**, not separate apps per actor. Role gating in the UI is UX only — authorization is always enforced server-side (tenant scoping in `core/deps`). Distributor/marketplace routes sit under their own top-level group so a future public/ops split is a clean lift.
+
 > Dev commands (install/run/migrate) to be filled in once scaffolding exists.
 
 ---
 
-## 7. Build Roadmap (vertical slices — happy path first)
-1. **Schema + migrations** (Alembic) for all tables above.
-2. **Auth + roles + tenant scoping** (boilerplate).
-3. **Core loop:** harvest intake → JWT-signed QR → manager confirm (with pool check + buy-decision) → pay farmer from Marginal Profit Pool → ledger entry.
-4. **Marketplace:** distributor browse → checkout (Xendit split, QRIS/VA) → 1–2% fee → pickup/delivery with signed QR.
-5. **Loan lifecycle:** apply → credit score → eligibility (Loan Pool check) → admin audit → disburse → installments → past-due/seize, with `loan_status_history`.
-6. **Audit log + anomaly view**, **transparansi dana** (two-pool view), **portfolio reporting** via `data_share_grants`.
+## 7. Backend Build Timeline — 15 Phases
 
-Build each slice end-to-end before polishing UI — a working vertical slice demos far better than half-finished features.
+Ordered by **dependency + ascending complexity** (easiest first). Each phase should be independently runnable and demoable. Don't start a phase until the previous one is green.
+
+| # | Phase | Goal / Deliverables | Tables / Modules | Done when |
+|---|---|---|---|---|
+| 1 | **Scaffold & config** | FastAPI app factory, settings loading `MODE`, CORS, `/health` endpoint, requirements.txt | `main.py`, `core/config.py` | `GET /health` returns 200; `MODE` read from env |
+| 2 | **DB & migrations setup** | SQLAlchemy engine/session, `Base`, Alembic init, Railway MySQL connection | `db/`, `alembic/` | empty migration runs against MySQL |
+| 3 | **Core models + first migration** | `koperasi`, `users`, `koperasi_funds`, base enums; first real migration | `models/` | tables exist in DB |
+| 4 | **Auth** | JWT signup/login, password hashing (bcrypt), role enum on token | `core/security.py`, `api/auth.py` | login returns a JWT with role + koperasi_id |
+| 5 | **Tenant scoping + RBAC** | `get_current_user`, tenant-scope dependency, role guards | `core/deps.py` | a query without tenant filter is impossible by convention; cross-tenant access blocked |
+| 6 | **Koperasi & farmer onboarding** | koperasi CRUD; farmer signup with KTP photo → **Cloudinary**; admin manual validation | `api/koperasi.py`, `api/farmers.py`, `services/storage.py` | farmer signs up, KTP uploads, admin approves → `active` |
+| 7 | **Commodities & catalog** | commodity CRUD, PIHPS price field, `current_stock_kg` | `api/commodities.py` | koperasi manages its own catalog (tenant-scoped) |
+| 8 | **Ledger & two-pool funds** | `ledger_entries` + `koperasi_funds`; pool invariant; `apbn_grant` credit to Loan Pool; balances derived from ledger | `models/ledger.py`, `services/ledger.py` | APBN grant credits Loan Pool only; balances reconcile |
+| 9 | **Payment provider abstraction** | `PaymentProvider` interface + `MockXenditProvider` (instant paid, fake disbursement, no QRIS cap); `XenditProvider` stub | `payments/` | mock returns deterministic results; selected by `MODE` |
+| 10 | **Harvest intake + signed QR** | intake create, **JWT-signed QR** generation, `estimated_value`, status `pending`; farmer sees live status | `api/intakes.py`, `services/qr.py` | farmer creates intake, gets signed QR, status visible |
+| 11 | **Manager confirm + buy-decision** | re-weigh confirm/reject, **Marginal Profit Pool check + over-pool alert**, stock movement (in), pay farmer via provider + ledger entry | `services/intake.py`, `models/stock_movements.py` | confirm pays farmer from Marginal Profit Pool, stock & ledger updated; reject sets status |
+| 12 | **Marketplace orders + checkout** | order/order_items, Xendit **split payment**, **QRIS ≤10jt → VA fallback**, 1–2% platform fee, webhook handling (mock-simulated in dev) | `api/orders.py`, `services/orders.py` | distributor checks out, fee split recorded, payment marked paid |
+| 13 | **Fulfillment + pickup QR** | delivery vs pickup; **signed pickup QR** scan validation (asli/palsu); stock movement (out) | `services/fulfillment.py` | manager scans valid pickup QR → goods released, stock reduced |
+| 14 | **Loans + credit scoring** | credit score (SQL aggregation), tier/limit, eligibility (**Loan Pool check**), admin audit, disburse via provider, installments, `loan_status_history`, past-due/seize | `api/loans.py`, `services/credit.py`, `services/loans.py` | full loan lifecycle works; loans only from Loan Pool |
+| 15 | **Audit, anomaly & reporting** | append-only `audit_log`, kasir anomaly/fraud detection, **portfolio reporting scoped by `data_share_grants`** | `services/audit.py`, `api/reports.py` | audit log immutable; financing partner sees only granted scope |
+
+> Build the matching frontend slice right after each backend phase where it makes sense — but a working vertical slice always beats half-finished features (graded on low-bug + real implementation).
 
 ---
 
