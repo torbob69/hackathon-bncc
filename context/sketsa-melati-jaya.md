@@ -1,58 +1,108 @@
-# MELATI JAYA — Aplikasi Koperasi Tani (Planning Notes)
+# MELATI JAYA — Aplikasi Koperasi Tani (MVP Planning Notes)
 
-> Dokumen ini adalah ringkasan terstruktur dari sketsa Excalidraw `1781253715843_sketsa.excalidraw`, yang berisi rancangan alur (flow) aplikasi koperasi tani "MELATI JAYA". NOTES: Sudah diedit sehingga ada beberapa mismatch dengan file excalidraw
+> Dokumen ini adalah ringkasan terstruktur dari sketsa Excalidraw `1781253715843_sketsa.excalidraw`, dirombak menjadi rencana **MVP** yang fokus pada kelayakan bisnis, profitabilitas, dan kepraktisan implementasi (hackathon scope). NOTES: Sudah diedit sehingga ada beberapa mismatch dengan file excalidraw.
+
+## 0. Prinsip MVP (Baca Dulu)
+
+Tujuan rilis pertama bukan membangun semua revenue stream sekaligus, tetapi **membuktikan loop bisnis yang menghasilkan margin nyata dan bisa dibangun dalam waktu terbatas.**
+
+Tiga aturan scoping:
+
+1. **Marketplace multi-koperasi.** Platform menampung banyak koperasi; distributor bisa membeli dari koperasi manapun yang terdaftar. Inilah inti produk — bukan single-tenant.
+2. **Bangun yang punya margin terbukti dulu:** loop dagang komoditas (panen masuk → simpan → jual ke distributor). Menghasilkan uang nyata dan tidak butuh izin khusus.
+3. **Fitur berisiko-regulasi (lending) hanya untuk anggota terdaftar**, dengan asumsi konservatif. Lihat Bagian 7 untuk dasar hukumnya.
+
+### Scope Matrix
+
+| Fitur | Status MVP | Alasan |
+|---|---|---|
+| Pencatatan stok via QR (panen masuk/keluar) | ✅ CORE | Memecahkan masalah utama (Excel), nol friksi adopsi |
+| Pembayaran petani dari dana koperasi | ✅ CORE | Otomatisasi operasional |
+| Transparansi dana koperasi | ✅ CORE | Trust signal, retention |
+| Marketplace multi-koperasi (B2B ke distributor) | ✅ CORE | Sumber margin utama + basis transaction fee |
+| Pinjaman anggota + credit scoring | ⚠️ CORE-TERBATAS | Hanya untuk anggota terdaftar, asumsi konservatif |
+| Audit & deteksi anomali transaksi | ✅ CORE | Anti-fraud = value proposition di koperasi desa |
+| Monetisasi data (anonim) | ⏳ ROADMAP | Revenue masa depan, butuh kemitraan bank |
+
+---
 
 ## 1. Tujuan Utama
 
-Sketsa membagi tujuan aplikasi menjadi dua aspek besar:
+Aplikasi punya dua aspek:
 
 - **Problem Solving** — menyelesaikan masalah operasional koperasi.
-- **Profitting / Business** — menghasilkan pendapatan dari aplikasi.
+- **Profitting / Business** — menghasilkan pendapatan, baik untuk koperasi maupun untuk platform.
 
 ### 1.1 Problem & Solusi
 
-- **Masalah:** data stok hilang/rusak — kemungkinan karena pencatatan masih menggunakan Excel.
-- **Solusi:** mencatat secara digital menggunakan software custom dengan database (DB).
+- **Masalah:** data stok hilang/rusak karena pencatatan masih menggunakan Excel; rawan kesalahan dan kecurangan kasir/manajer.
+- **Solusi:** pencatatan digital dengan database, harga terkunci ke referensi resmi (PIHPS), dan audit trail yang tidak bisa diubah.
 
-### 1.2 Model Bisnis (Business)
+### 1.2 Model Bisnis & Monetisasi (dengan Angka)
 
-1. Consistent revenue — license selling / copyright (KopDes), atau model B2B.
-2. Transaction / commission fees.
-3. Loaning services untuk petani.
-4. Commerce functionality.
-5. Equipment renting.
+Dua lapis pendapatan: **(A) Margin koperasi** (koperasi untung dari dagang) dan **(B) Pendapatan platform** (aplikasi untung dari transaksi). Keduanya harus jelas, karena selama ini hanya (A) yang punya proyeksi.
+
+**A. Margin dagang koperasi (sudah terbukti, ~33-39% gross):**
+
+- Beli dari petani dengan harga acuan PIHPS, jual B2B ke distributor → selisih harga adalah margin koperasi.
+
+**B. Pendapatan platform — Transaction Fee (flat untuk semua):**
+
+- **Setiap koperasi dikenakan transaction fee 1–2% dari nilai transaksi B2B** yang difasilitasi platform. **Tanpa tier** — berlaku sama untuk semua koperasi, besar maupun kecil.
+- Model ini menjaga barrier adopsi rendah (gratis dipakai, bayar hanya saat ada transaksi) dan pendapatan platform tumbuh seiring volume.
+
+**C. Pendapatan masa depan (roadmap, bukan MVP):**
+
+- Bunga/biaya layanan pinjaman anggota (lihat Bagian 7).
+- *Data licensing* (anonim) — skor kredit berbasis panen sebagai aset data untuk bank UMKM.
+
+> **Catatan modal pemerintah:** Koperasi bisa mengajukan modal/dana dari APBN/pemerintah setempat atau LPDB-KUMKM. Dana ini sebaiknya dipakai untuk **loan pool terpisah**, bukan dicampur dengan modal operasional pembelian komoditas (lihat aturan treasury di Bagian 7).
+
+---
 
 ## 2. Entitas Sistem
 
-Akan ada beberapa entitas pengguna dalam sistem:
+Entitas pengguna dalam sistem:
 
-1. Koperasi
-2. Buyer / Distributor
-3. Farmer (Petani)
-4. Manajer
-5. Admin
-6. (kemungkinan ada entitas tambahan lainnya)
+1. **Koperasi** — penyimpan dan penjual komoditas; tampil di marketplace.
+2. **Buyer / Distributor** — pembeli B2B; bisa membeli dari koperasi manapun.
+3. **Farmer (Petani)** — penyetor hasil panen, anggota koperasi.
+4. **Manajer** — verifikator pasif (timbang ulang, scan, konfirmasi).
+5. **Admin** — validasi pendaftaran, audit pinjaman.
 
-Catatan tambahan:
-- Petani tidak terikat kontrak dengan suatu koperasi, sehingga bisa bebas berinteraksi dengan koperasi manapun.
-- Marketplace aplikasi menampilkan semua koperasi yang ada.
+Catatan penting:
+
+- **Petani terikat sebagai anggota terdaftar pada satu koperasi.** Semua kegiatan (jual komoditas, pinjam uang) dilakukan pada koperasi tempat ia terdaftar. Ini adalah dasar hukum yang membuat layanan pinjaman sah sebagai **Koperasi Simpan Pinjam (KSP)** tanpa harus berizin OJK P2P lending.
+- **Marketplace menampilkan semua koperasi yang terdaftar.** Distributor melihat katalog lintas-koperasi.
 - Setiap koperasi memiliki katalog produk sendiri.
-- Koperasi bisa meminta modal atau dana dari APBN/pemerintah setempat.
 
-## 3. Fitur-Fitur Utama
+---
 
-1. Masukin barang via QR — data dikeluarkan dan dibuat oleh farmer.
-2. Manager hanya bertugas scan dan mengecek ulang beban.
-3. Fitur logging dan audit barang masuk & keluar.
-4. Dana koperasi dapat dilihat oleh semua anggota.
+## 3. Fitur Inti MVP
 
-## 4. Additional Features (Wajib)
+1. **Input barang via QR** — data dibuat oleh farmer saat menyetor panen.
+2. **Manajer pasif** — hanya scan & timbang ulang untuk konfirmasi, tidak bisa mengubah harga (harga terkunci PIHPS).
+3. **Logging & audit barang masuk/keluar** — immutable, untuk anti-fraud.
+4. **Transparansi dana koperasi** — saldo & arus kas dapat dilihat semua anggota.
+5. **Marketplace multi-koperasi** — distributor membeli dari koperasi manapun; platform memungut transaction fee 1–2%.
 
-1. Pengadaan pupuk bersama → perlu dibuatkan sistemnya. (WE DONT IMPLEMENT THIS)
-2. Penerimaan hasil panen di gudang — bisa ditrack dan terintegrasi dengan supply chain. (PARTIALLY Implemented in plan)
-3. Mengajukan pinjaman *(DONE — lihat Skenario Loan)*.
-4. Anomaly transaction → audit dan deteksi fraud kasir *(DONE)*.
-5. Memeriksa perubahan data pinjaman → melihat riwayat perubahan data, approve atau tidak *(DONE)*.
+### Pertimbangan Adopsi (Realita Petani Desa)
+
+Karena target pengguna adalah petani dengan literasi digital & koneksi terbatas, MVP harus mempertimbangkan:
+
+- **Offline-friendly:** aksi penting (scan QR, catat panen) bisa jalan saat sinyal lemah, sync menyusul.
+- **Digital assistant / operator koperasi:** satu orang di koperasi membantu input data petani yang belum terbiasa. Ini kunci adopsi, bukan UX semata.
+- **Opsi pembayaran tunai** tetap didukung sebagai sinyal kepercayaan.
+
+---
+
+## 4. Fitur Lanjutan & Status
+
+1. **Penerimaan hasil panen di gudang** — track & terintegrasi supply chain *(PARTIAL di MVP)*.
+2. **Mengajukan pinjaman** *(CORE-TERBATAS — lihat Bagian 7)*.
+3. **Anomaly transaction → audit & deteksi fraud kasir** *(CORE)*.
+4. **Audit perubahan data pinjaman** — riwayat perubahan, approve/tolak *(CORE)*.
+5. **Monetisasi data (anonim)** *(ROADMAP)*.
 
 ---
 
@@ -62,81 +112,90 @@ Alur ketika petani memanen hasil dan memasukkannya ke cold storage:
 
 1. **Petani** melakukan panen sayuran.
 2. Sayuran ditimbang ("timbang beban").
-3. Sistem **generate QR code** yang berisi data sayur, nama farmer, dan beratnya.
-   - QR ini otomatis tersimpan sementara di device farmer dengan estimasi selama beberapa jam dan akan terhapus.
-4. **Manager** menimbang ulang beban untuk konfirmasi apakah bebannya sesuai tidak.
-5. Jika iya, manager memasukkan barang ke cold storage, lalu melakukan pembayaran ke petani menggunakan dana koperasi yang ada.
+3. Sistem **generate QR code** berisi data sayur, nama farmer, dan beratnya.
+   - QR tersimpan sementara di device farmer (beberapa jam) lalu terhapus.
+4. **Manajer** menimbang ulang untuk konfirmasi kesesuaian beban.
+5. Jika sesuai, manajer memasukkan barang ke cold storage, lalu membayar petani menggunakan dana koperasi. Harga ikut acuan PIHPS (terkunci, tidak bisa dinegosiasi manual).
 
-## 6. Skenario: Item Out (Kejual)
+## 6. Skenario: Item Out (Terjual ke Distributor)
 
-Alur ketika barang di cold storage keluar karena terjual ke distributor:
+Alur ketika barang di cold storage keluar karena terjual:
 
-1. Sistem mengecek ketersediaan barang ("Sistem mengecek ketersediaan").
+1. Sistem mengecek ketersediaan barang.
 2. Cold storage mengeluarkan sayuran sesuai permintaan.
 3. Sistem generate QR code dari sayur yang dikeluarkan.
-4. Manager melakukan konfirmasi alur data.
-5. Barang ditimbang ("timbang beban").
-6. Distributor mengambil sayuran; cold storage mengeluarkan sayuran ke distributor.
+4. Manajer melakukan konfirmasi alur data.
+5. Barang ditimbang ulang.
+6. Distributor mengambil sayuran.
 
-## 7. Skenario: Pembeli Membeli (Pembelian via Aplikasi)
+> **Pricing B2B:** harga dasar = PIHPS. Untuk menarik distributor besar, sistem boleh menerapkan **diskon volume terstruktur yang terkunci sistem** (mis. 100–500 kg → −3%, > 500 kg → −5%) — tetap transparan & anti-manipulasi, tidak dinego manual. Platform memungut transaction fee 1–2% dari nilai transaksi.
 
-1. Distributor ingin membeli item melalui aplikasi.
-2. Sistem menampilkan semua available koperasi dan barang yang ada di setiap koperasi.
-3. Distributor memilih barang, input berat, dan membayar (digital payment).
-4. Sistem melakukan validasi hasil pesanan.
-5. **Decision — Checkout?**
-   - **Yes** → lanjut ke langkah 6.
-   - **No** → kembali ke langkah 1 (distributor memilih barang lagi).
-6. Pembeli memilih antara **pengiriman** atau **pengambilan**:
-   - **Pengiriman**
-     - **Yes** → mengisi alamat pengiriman dan membayar langsung, koperasi hanya bertugas untuk mengirim saja → pembeli melakukan transaksi.
-     - **No** → aplikasi menyediakan QR setelah pembayaran untuk pengambilan barang → pembeli melakukan transaksi.
-7. **Decision — Transaksi berhasil?**
-   - **Sukses (Ya)** → sistem menandai barang yang menunggu untuk diambil, dan update database untuk menandai barang yang sudah terjual tetapi stock belum dikurangi, kecuali saat sudah diambil.
-   - **Gagal (Tidak)** → transaksi tidak berhasil (proses berhenti).
+## 7. Skenario: Pembelian via Aplikasi (Marketplace)
 
-## 8. Skenario: Pembeli Pick Up
+1. Distributor ingin membeli item via aplikasi.
+2. Sistem menampilkan semua koperasi terdaftar & barang di tiap koperasi.
+3. Distributor memilih barang, input berat, bayar digital.
+4. Sistem validasi pesanan → checkout.
+5. Pilih **pengiriman** (isi alamat, koperasi mengirim) atau **pengambilan** (QR untuk pickup).
+6. Jika transaksi sukses → sistem menandai barang terjual & update DB (stok dikurangi saat barang diambil). **Platform memungut transaction fee 1–2% dari nilai transaksi.**
 
-1. Distributor datang ke cold storage.
-2. Distributor menyediakan QR pesanan.
-3. Manager melakukan scan QR dari distributor, mengecek apakah pesanan asli atau palsu.
-4. Cold storage mengeluarkan sayuran sesuai dengan pesanan.
-5. Manager dan distributor saling memvalidasi beban dan komoditas yang dibeli sudah benar atau belum.
-6. Sayur diberikan kepada distributor.
+### 7.1 Pembeli Pick Up
 
-## 9. Skenario: Signup Farmer
+1. Distributor datang ke cold storage, menyediakan QR pesanan.
+2. Manajer scan QR, cek asli/palsu.
+3. Cold storage mengeluarkan sayuran sesuai pesanan.
+4. Manajer & distributor saling memvalidasi beban & komoditas.
+5. Sayur diberikan ke distributor.
+
+## 8. Skenario: Pinjaman / Loan Anggota (Core-Terbatas)
+
+> **Dasar hukum (PENTING):** Pinjaman HANYA diberikan kepada **anggota terdaftar** koperasi tempat petani bergabung. Dengan demikian operasi ini berjalan sebagai **Koperasi Simpan Pinjam (KSP)** di bawah Kementerian Koperasi, bukan P2P lending OJK. Untuk MVP/demo, ini cukup; untuk skala produksi, daftarkan izin simpan-pinjam KSP secara resmi, atau bermitra dengan BPR/fintech berlisensi sebagai penyalur.
+
+### 8.1 Aturan Treasury (Mitigasi Risiko Modal)
+
+- **Pisahkan loan pool dari modal operasional** pembelian komoditas. Sumber loan pool: alokasi profit koperasi dan/atau dana bergulir (LPDB-KUMKM, APBN).
+- **Reserve ratio:** minimal sebagian dana wajib disisihkan sebagai likuiditas operasional, tidak boleh dipinjamkan.
+- **Asumsi konservatif:** modelkan *default rate* realistis (mis. 15–20%) dan sediakan provisi kerugian. Lending agrikultur tidak pernah 0% gagal bayar.
+
+### 8.2 Alur Pengajuan
+
+1. Petani membuka menu **Loan**, mengisi: jumlah pinjaman, *installment plan* (lama cicilan), tujuan (benih/pupuk/alat). Menyetujui ToS termasuk ketentuan jaminan.
+   - **Jaminan harus legally enforceable** (mis. BPKB via fidusia / agunan yang sah), bukan sekadar checkbox "penyitaan aset" yang tidak punya kekuatan eksekutorial.
+2. Sistem menghitung **skor kredit** berdasarkan:
+   - Total berat panen 6 bulan terakhir.
+   - Frekuensi & riwayat transaksi (uang masuk dari koperasi ke petani).
+   - Tunggakan aktif.
+3. Sistem menetapkan **limit** per petani berdasarkan tier kredit (dari skor kredit).
+4. Petani mengajukan jumlah & tujuan pinjaman.
+5. **Decision — Jumlah ≤ (loan pool tersedia × x%)?** Tidak → tolak otomatis.
+6. **Decision — Jumlah ≤ limit kredit?** Tidak → tolak otomatis ("melebihi limit").
+7. **Decision — Ada tunggakan macet?**
+   - Hitung sisa = limit − total pinjaman menunggak.
+   - Jika pinjaman > sisa (status macet) → tolak otomatis.
+   - Jika pinjaman ≤ sisa → kirim ke audit (status **PENDING**).
+
+### 8.3 Setelah Disetujui (Siklus Cicilan)
+
+1. Sistem mengirim request ke admin untuk audit pinjaman.
+2. Jika disetujui, koperasi mentransfer dana (tercatat otomatis dari loan pool).
+3. Status **Aktif**, tampil di dashboard petani. Cicilan dibayar per bulan.
+4. Jika jatuh tempo lewat & belum lunas → status **PAST DUE**, di-follow up koperasi untuk ditagih.
+5. Koperasi dapat meng-*extend* masa cicilan. Jika tidak di-extend & tetap gagal bayar → berlaku prosedur eksekusi jaminan sesuai ketentuan hukum yang sah.
+
+## 9. Skenario: Signup Farmer (Menjadi Anggota)
 
 1. Petani mengisi data: nama, NIK, alamat, no. telp, foto KTP/SIM.
-2. **Decision — Sistem/admin validasi data secara manual:**
-   - **Ya** → set password → tambahkan farmer baru ke database.
-   - **Tidak** → signup gagal ("signup failed").
+2. **Decision — Admin validasi data secara manual + status keanggotaan koperasi:**
+   - **Ya** → set password → tambahkan sebagai anggota terdaftar di database.
+   - **Tidak** → signup gagal.
 
-## 10. Skenario: Pinjaman / Loan (Petani)
+---
 
-Alur pengajuan pinjaman oleh petani hingga proses cicilan:
+## 10. Ringkasan Prioritas Implementasi
 
-1. Petani membuka menu **Loan**. Dan dia akan mengisi beberapa input seperti jumlah uang yang mau dipinjam, instalment plan (masa cicilannya berapa lama), dan tujuan peminjaman uangnya. Disini petani harus menyetujui ToS dan ketentuan peminjaman, termasuk penyitaan aset.
-2. Sistem menghitung **skor kredit**, berdasarkan:
-   - Total berat panen 6 bulan terakhir.
-   - Frekuensi dan riwayat transaksi, berapa uang masuk dari koperasi ke petani dari hasil penjualan komoditas.
-   - Tunggakan aktif.
-3. Sistem menerapkan limit maximal untuk setiap petani berdasarkan pengelompokkan tier (tier ditentukan dari skor kredit).
-4. Petani mengajukan jumlah pinjaman beserta tujuan (benih / pupuk / alat).
-5. **Decision - Jumlah Pinjaman <= Dana koperasi * x%?**
-   - Ya --> lanjut ke langkah 6
-   - Tidak --> Tolak otomatis
-6. **Decision — Jumlah ≤ limit?**
-   - **Tidak** → sistem tolak otomatis, notifikasi "melebihi limit".
-   - **Ya** → lanjut ke langkah 7 (cek tunggakan lain / status macet).
-7. **Decision — Ada tunggakan lain (status macet)?**
-   Hitung dulu sisa = limit - current total pinjaman yang masih menunggak
-   - **Jika pinjaman > sisa , status macet** → sistem tolak otomatis, notifikasi "melebihi limit".
-   - **JIka pinjaman < sisa** →  Kirim request pinjaman untuk di audit (status : PENDING)
-
-### 10.1 Setelah Disetujui (Siklus Cicilan)
-
-1. Sistem akan mengirim request ke admin untuk mengaudit permintaan pinjaman dari petani.
-2. Jika disetujui, sistem koperasi akan  mentransfer dana — tercatat otomatis.
-3. Status pinjaman menjadi **Aktif**, tampil di dashboard petani. Pinjaman ini bersifat instalment, jadi harus dibayar cicilannya per bulan
-4. Jika masa cicilan sudah lewat, DAN belum lunas semua, sistem akan update status : PAST DUE, dan akan difollow up kopdes, untuk ditagih.
-5. Sesuai dengan keinginan kopdes, bisa di extend masa cicilannya tergantung kopdes. Kalo kopdes/manager tidak memutuskan untuk extend, maka berlaku prosedur penyitaan aset. 
+| # | Aksi | Dampak | Effort |
+|---|---|---|---|
+| 1 | Loop dagang komoditas (panen masuk → jual B2B) | Margin utama, problem-solution fit | Inti MVP |
+| 2 | Marketplace multi-koperasi + transaction fee 1–2% | Pendapatan platform, basis monetisasi | Sedang |
+| 3 | Transparansi dana + audit anti-fraud | Trust & retention | Rendah-Sedang |
+| 4 | Pinjaman anggota (KSP, asumsi konservatif) | Revenue masa depan, harus legally sound | Sedang |
