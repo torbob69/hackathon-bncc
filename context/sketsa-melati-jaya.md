@@ -1,6 +1,6 @@
 # MELATI JAYA — Aplikasi Koperasi Tani (Planning Notes)
 
-> Dokumen ini adalah ringkasan terstruktur dari sketsa Excalidraw `1781253715843_sketsa.excalidraw`, yang berisi rancangan alur (flow) aplikasi koperasi tani "MELATI JAYA".
+> Dokumen ini adalah ringkasan terstruktur dari sketsa Excalidraw `1781253715843_sketsa.excalidraw`, yang berisi rancangan alur (flow) aplikasi koperasi tani "MELATI JAYA". NOTES: Sudah diedit sehingga ada beberapa mismatch dengan file excalidraw
 
 ## 1. Tujuan Utama
 
@@ -34,22 +34,22 @@ Akan ada beberapa entitas pengguna dalam sistem:
 6. (kemungkinan ada entitas tambahan lainnya)
 
 Catatan tambahan:
-- Setiap koperasi memiliki beberapa anggota (petani).
+- Petani tidak terikat kontrak dengan suatu koperasi, sehingga bisa bebas berinteraksi dengan koperasi manapun.
 - Marketplace aplikasi menampilkan semua koperasi yang ada.
 - Setiap koperasi memiliki katalog produk sendiri.
+- Koperasi bisa meminta modal atau dana dari APBN/pemerintah setempat.
 
 ## 3. Fitur-Fitur Utama
 
 1. Masukin barang via QR — data dikeluarkan dan dibuat oleh farmer.
 2. Manager hanya bertugas scan dan mengecek ulang beban.
-3. Fitur auto-chat via WhatsApp jika suhu cold storage tidak sesuai.
-4. Fitur logging dan audit barang masuk & keluar.
-5. Dana koperasi dapat dilihat oleh semua anggota.
+3. Fitur logging dan audit barang masuk & keluar.
+4. Dana koperasi dapat dilihat oleh semua anggota.
 
 ## 4. Additional Features (Wajib)
 
-1. Pengadaan pupuk bersama → perlu dibuatkan sistemnya.
-2. Penerimaan hasil panen di gudang — bisa ditrack dan terintegrasi dengan supply chain.
+1. Pengadaan pupuk bersama → perlu dibuatkan sistemnya. (WE DONT IMPLEMENT THIS)
+2. Penerimaan hasil panen di gudang — bisa ditrack dan terintegrasi dengan supply chain. (PARTIALLY Implemented in plan)
 3. Mengajukan pinjaman *(DONE — lihat Skenario Loan)*.
 4. Anomaly transaction → audit dan deteksi fraud kasir *(DONE)*.
 5. Memeriksa perubahan data pinjaman → melihat riwayat perubahan data, approve atau tidak *(DONE)*.
@@ -63,9 +63,9 @@ Alur ketika petani memanen hasil dan memasukkannya ke cold storage:
 1. **Petani** melakukan panen sayuran.
 2. Sayuran ditimbang ("timbang beban").
 3. Sistem **generate QR code** yang berisi data sayur, nama farmer, dan beratnya.
-   - QR ini otomatis tersimpan sebagai log via backend.
-4. **Manager** menimbang ulang beban untuk konfirmasi.
-5. Manager memasukkan barang ke cold storage, lalu mengirim bukti foto dan melakukan pembayaran ke petani.
+   - QR ini otomatis tersimpan sementara di device farmer dengan estimasi selama beberapa jam dan akan terhapus.
+4. **Manager** menimbang ulang beban untuk konfirmasi apakah bebannya sesuai tidak.
+5. Jika iya, manager memasukkan barang ke cold storage, lalu melakukan pembayaran ke petani menggunakan dana koperasi yang ada.
 
 ## 6. Skenario: Item Out (Kejual)
 
@@ -78,12 +78,10 @@ Alur ketika barang di cold storage keluar karena terjual ke distributor:
 5. Barang ditimbang ("timbang beban").
 6. Distributor mengambil sayuran; cold storage mengeluarkan sayuran ke distributor.
 
-> Catatan: terdapat versi/draft awal dari alur yang sama (node-node duplikat) di bagian lain sketsa dengan isi konten yang identik.
-
 ## 7. Skenario: Pembeli Membeli (Pembelian via Aplikasi)
 
 1. Distributor ingin membeli item melalui aplikasi.
-2. Sistem menampilkan semua barang yang ada di koperasi.
+2. Sistem menampilkan semua available koperasi dan barang yang ada di setiap koperasi.
 3. Distributor memilih barang, input berat, dan membayar (digital payment).
 4. Sistem melakukan validasi hasil pesanan.
 5. **Decision — Checkout?**
@@ -91,10 +89,10 @@ Alur ketika barang di cold storage keluar karena terjual ke distributor:
    - **No** → kembali ke langkah 1 (distributor memilih barang lagi).
 6. Pembeli memilih antara **pengiriman** atau **pengambilan**:
    - **Pengiriman**
-     - **Yes** → mengisi alamat pengiriman → pembeli melakukan transaksi.
-     - **No** → aplikasi menyediakan QR untuk pengambilan → pembeli melakukan transaksi.
+     - **Yes** → mengisi alamat pengiriman dan membayar langsung, koperasi hanya bertugas untuk mengirim saja → pembeli melakukan transaksi.
+     - **No** → aplikasi menyediakan QR setelah pembayaran untuk pengambilan barang → pembeli melakukan transaksi.
 7. **Decision — Transaksi berhasil?**
-   - **Sukses (Ya)** → penyimpanan menandai barang yang menunggu untuk diambil.
+   - **Sukses (Ya)** → sistem menandai barang yang menunggu untuk diambil, dan update database untuk menandai barang yang sudah terjual tetapi stock belum dikurangi, kecuali saat sudah diambil.
    - **Gagal (Tidak)** → transaksi tidak berhasil (proses berhenti).
 
 ## 8. Skenario: Pembeli Pick Up
@@ -102,8 +100,8 @@ Alur ketika barang di cold storage keluar karena terjual ke distributor:
 1. Distributor datang ke cold storage.
 2. Distributor menyediakan QR pesanan.
 3. Manager melakukan scan QR dari distributor, mengecek apakah pesanan asli atau palsu.
-4. Manager dan distributor saling memvalidasi beban dan komoditas yang dibeli sudah benar atau belum.
-5. Cold storage mengeluarkan sayuran sesuai dengan pesanan.
+4. Cold storage mengeluarkan sayuran sesuai dengan pesanan.
+5. Manager dan distributor saling memvalidasi beban dan komoditas yang dibeli sudah benar atau belum.
 6. Sayur diberikan kepada distributor.
 
 ## 9. Skenario: Signup Farmer
@@ -117,39 +115,28 @@ Alur ketika barang di cold storage keluar karena terjual ke distributor:
 
 Alur pengajuan pinjaman oleh petani hingga proses cicilan:
 
-1. Petani membuka menu **Loan**.
-2. Sistem menghitung **limit kredit**, berdasarkan:
-   - Total kg panen 6 bulan terakhir.
-   - Frekuensi transaksi.
+1. Petani membuka menu **Loan**. Dan dia akan mengisi beberapa input seperti jumlah uang yang mau dipinjam, instalment plan (masa cicilannya berapa lama), dan tujuan peminjaman uangnya. Disini petani harus menyetujui ToS dan ketentuan peminjaman, termasuk penyitaan aset.
+2. Sistem menghitung **skor kredit**, berdasarkan:
+   - Total berat panen 6 bulan terakhir.
+   - Frekuensi dan riwayat transaksi, berapa uang masuk dari koperasi ke petani dari hasil penjualan komoditas.
    - Tunggakan aktif.
-3. Sistem menampilkan limit maksimal pinjaman ke petani.
+3. Sistem menerapkan limit maximal untuk setiap petani berdasarkan pengelompokkan tier (tier ditentukan dari skor kredit).
 4. Petani mengajukan jumlah pinjaman beserta tujuan (benih / pupuk / alat).
-5. **Decision — Jumlah ≤ limit?**
+5. **Decision - Jumlah Pinjaman <= Dana koperasi * x%?**
+   - Ya --> lanjut ke langkah 6
+   - Tidak --> Tolak otomatis
+6. **Decision — Jumlah ≤ limit?**
    - **Tidak** → sistem tolak otomatis, notifikasi "melebihi limit".
-   - **Ya** → lanjut ke langkah 6 (cek tunggakan lain / status macet).
-6. **Decision — Ada tunggakan lain (status macet)?**
-   - **Ya, status macet** → sistem tolak otomatis, notifikasi "melebihi limit".
-   - **Tidak / status lancar** → sistem **APPROVE otomatis** dan generate jadwal cicilan.
+   - **Ya** → lanjut ke langkah 7 (cek tunggakan lain / status macet).
+7. **Decision — Ada tunggakan lain (status macet)?**
+   Hitung dulu sisa = limit - current total pinjaman yang masih menunggak
+   - **Jika pinjaman > sisa , status macet** → sistem tolak otomatis, notifikasi "melebihi limit".
+   - **JIka pinjaman < sisa** →  Kirim request pinjaman untuk di audit (status : PENDING)
 
 ### 10.1 Setelah Disetujui (Siklus Cicilan)
 
-1. Sistem mengirim notifikasi ke **Manajer**: "cairkan dana ke Petani X".
-2. Manajer transfer dana via sistem — tercatat otomatis.
-3. Status pinjaman menjadi **Aktif**, tampil di dashboard petani & log publik.
-4. Masuk ke **Siklus Cicilan**, yang dievaluasi setiap kali ada transaksi panen petani:
-   - **Decision — Petani tidak panen 30 hari berturut-turut?**
-     - **Ya** → status berubah menjadi **MENUNGGAK**, notifikasi dikirim ke petani + admin → kembali ke siklus cicilan.
-     - Siklus cicilan kemudian dicek lagi:
-       - **Decision — Tunggak 60 hari?**
-         - Jika berlanjut (termasuk pengecekan ulang "tidak panen 30 hari berturut-turut") → status berubah menjadi **MACET**.
-           - Sistem memberi flag, akses pinjaman baru dikunci.
-           - **Admin/Pengawas** melakukan review manual, dengan opsi: restrukturisasi cicilan, atau write-off dari Cadangan Operasional.
-
-> Catatan: pada sketsa terdapat kolom paralel (di sisi kanan) dengan elemen-elemen serupa ("Setiap transaksi panen petani", "Petani tidak panen 30 hari berturut-turut?", "Sistem tolak otomatis – notifikasi melebihi limit", "Siklus cicilan") yang merepresentasikan eksplorasi/alternatif alur evaluasi tunggakan, namun belum memiliki garis penghubung (arrow) yang eksplisit ke alur utama di atas.
-
----
-
-## 11. Catatan Tambahan dari Sketsa
-
-- Terdapat kotak "Business" yang terhubung dari kotak "Profitting" pada bagian atas sketsa, menjelaskan dua kelompok model bisnis (lihat bagian 1.2).
-- Beberapa elemen merupakan gambar/ilustrasi (foto petani, sayuran, timbangan, cold storage, dsb.) yang menggambarkan aktor dan objek pada tiap skenario, namun tidak membawa informasi tekstual tambahan di luar yang sudah dirangkum di atas.
+1. Sistem akan mengirim request ke admin untuk mengaudit permintaan pinjaman dari petani.
+2. Jika disetujui, sistem koperasi akan  mentransfer dana — tercatat otomatis.
+3. Status pinjaman menjadi **Aktif**, tampil di dashboard petani. Pinjaman ini bersifat instalment, jadi harus dibayar cicilannya per bulan
+4. Jika masa cicilan sudah lewat, DAN belum lunas semua, sistem akan update status : PAST DUE, dan akan difollow up kopdes, untuk ditagih.
+5. Sesuai dengan keinginan kopdes, bisa di extend masa cicilannya tergantung kopdes. Kalo kopdes/manager tidak memutuskan untuk extend, maka berlaku prosedur penyitaan aset. 
