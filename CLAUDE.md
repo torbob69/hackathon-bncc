@@ -64,7 +64,7 @@ Track: **GMV per koperasi**, active farmer rate, loan disbursement volume, **NPL
 React + Tailwind (Vercel)
         │  HTTPS / JSON
         ▼
-FastAPI (Railway)  ──►  MySQL (Railway)
+FastAPI (Railway)  ──►  PostgreSQL (Supabase)
         │                     
         ├──► Cloudinary  (KTP/SIM photos, doc uploads)
         └──► Xendit      (split payments, QRIS/VA, disbursements)
@@ -72,7 +72,7 @@ FastAPI (Railway)  ──►  MySQL (Railway)
 Frontend and backend are separate deploys. Mobile-first PWA (managers & farmers scan QR on phones).
 
 ### 3.2 Multi-Tenancy (critical, graded)
-- **Every domain row carries `koperasi_id`.** MySQL has no row-level security, so isolation is enforced in the **service/query layer**: a FastAPI dependency derives the caller's tenant from their JWT and **all queries are scoped by `koperasi_id`**. Never run a domain query without a tenant filter.
+- **Every domain row carries `koperasi_id`.** Isolation is enforced in the **service/query layer**: a FastAPI dependency derives the caller's tenant from their JWT and **all queries are scoped by `koperasi_id`**. Never run a domain query without a tenant filter. (PostgreSQL has native RLS but we do not rely on it — service-layer scoping is the enforced boundary.)
 - Cross-tenant entities: `distributors`, `financing_partners`, and `users` with role `distributor`/`platform_admin`.
 - Distributors browse across koperasi (marketplace) but only see published catalog data.
 
@@ -108,16 +108,16 @@ Loans only to **registered members** of the borrower's koperasi → operates as 
 
 ---
 
-## 4. Database Schema (MySQL, multi-tenant)
+## 4. Database Schema (PostgreSQL / Supabase, multi-tenant)
 
 All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distributors`, `financing_partners`, and `users` (distributor/financing_partner/platform_admin).
 
 ### Type & money conventions (mandatory — fintech correctness)
 - **Money** = `DECIMAL(18,2)` (SQLAlchemy `Numeric(18,2, asdecimal=True)`). **Never `FLOAT`.** Applies to every amount/balance/price/fee column.
 - **Weight** = `DECIMAL(10,3)` (gram precision). Scores/rates = `DECIMAL(5,2)`.
-- **Timestamps** = `DATETIME` stored in **UTC** (engine `time_zone=+00:00`); convert to WIB in the frontend only. Calendar-only fields (e.g. `due_date`) = `DATE`.
-- **IDs** = `BIGINT`. **`nik`** = `VARCHAR(16)` `UNIQUE` (`CHECK nik REGEXP '^[0-9]{16}$'`). **QR tokens** = `VARCHAR(512)` (JWTs exceed 255).
-- Enums kept as MySQL `ENUM` (adding a value needs an Alembic migration). Requires **MySQL 8.0+** (for `CHECK` enforcement) — verify on Railway.
+- **Timestamps** = `TIMESTAMP WITH TIME ZONE` (`TIMESTAMPTZ`) stored in **UTC** (SQLAlchemy `DateTime(timezone=True)`); convert to WIB in the frontend only. Calendar-only fields (e.g. `due_date`) = `DATE`.
+- **IDs** = `BIGINT`. **`nik`** = `VARCHAR(16)` `UNIQUE` (`CHECK (nik ~ '^[0-9]{16}$')`). **QR tokens** = `TEXT` (no 255-char limit needed on PostgreSQL).
+- Enums use PostgreSQL native `ENUM` types via SQLAlchemy `Enum` (adding a value needs an Alembic migration with `op.execute("ALTER TYPE ...")`). No minimum version requirement — `CHECK` constraints are enforced on all modern PostgreSQL.
 
 | Table | Key columns |
 |---|---|
@@ -136,7 +136,7 @@ All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distri
 | **loan_installments** | id, loan_id (FK), **koperasi_id (FK)**, due_date (`DATE`), amount_due, amount_paid, status(`unpaid`/`paid`/`late`), `ledger_entry_id` (FK, nullable — links repayment), paid_at |
 | **loan_status_history** | id, loan_id (FK), **koperasi_id (FK)**, old_status, new_status, changed_by, reason, created_at |
 | **credit_scores** | id, farmer_id (FK), **koperasi_id (FK)**, score, tier, harvest_weight_6mo, txn_count, active_arrears, computed_at |
-| **audit_log** *(append-only)* | id, koperasi_id, actor_user_id, action, entity_type, entity_id, before_json, after_json, ip, created_at. *Enforced append-only: app DB user has INSERT/SELECT only + `BEFORE UPDATE/DELETE` trigger raises SIGNAL* |
+| **audit_log** *(append-only)* | id, koperasi_id, actor_user_id, action, entity_type, entity_id, before_json, after_json, ip, created_at. *Enforced append-only: app DB role has INSERT/SELECT only + `BEFORE UPDATE/DELETE` trigger raises `RAISE EXCEPTION` (PL/pgSQL)* |
 | **financing_partners** | id, **`user_id` (FK→users, unique — login bridge for report auth)**, name, contact_email |
 | **data_share_grants** | id, koperasi_id, financing_partner_id (FK), scope_json *(validated against a Pydantic allow-list — never trusted raw)*, date_range_start, date_range_end, status(`active`/`revoked`), granted_by, created_at |
 | **xendit_webhook_events** *(idempotency inbox)* | id, `event_id` VARCHAR(128) (**unique**), event_type, reference_type, reference_id, payload JSON, status(`received`/`processed`/`duplicate`), received_at, processed_at |
@@ -146,7 +146,7 @@ All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distri
 
 **Concurrency rule:** any pool sufficiency check (harvest confirm against Marginal Profit Pool; loan disburse against Loan Pool) must `SELECT … FOR UPDATE` the `koperasi_funds` row, check, write the `ledger_entry`, and update the balance — all in **one transaction**. This serializes per-koperasi and prevents overdraft.
 
-**Idempotency rule:** every Xendit webhook lands in `xendit_webhook_events` first (`INSERT … ON DUPLICATE KEY` on `event_id`); skip if already present. Ledger writes from webhooks carry `external_idempotency_key` so a replay can't double-post.
+**Idempotency rule:** every Xendit webhook lands in `xendit_webhook_events` first (`INSERT … ON CONFLICT (event_id) DO NOTHING`); skip if already present. Ledger writes from webhooks carry `external_idempotency_key` so a replay can't double-post.
 
 **Key indexes:** every `koperasi_id`; `users.email` unique; `farmers.nik` unique; `harvest_intakes.qr_token` & `orders.pickup_qr_token` unique; `orders.xendit_invoice_id` unique; `loans.xendit_disbursement_id` unique; `ledger_entries.external_idempotency_key` unique-where-not-null; `xendit_webhook_events.event_id` unique; `loan_installments(loan_id, due_date)`; `credit_scores(farmer_id, computed_at DESC)`; `ledger_entries(koperasi_id, created_at)`.
 
@@ -157,8 +157,8 @@ All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distri
 | Layer | Tech | Host |
 |---|---|---|
 | Frontend | React + Tailwind (Vite), mobile-first PWA | **Vercel** |
-| Backend | FastAPI (Python), SQLAlchemy 2.0 + Alembic, Pydantic v2 | **Railway** |
-| Database | MySQL | **Railway** |
+| Backend | FastAPI (Python), SQLAlchemy 2.0 async (`asyncpg`) + Alembic, Pydantic v2 | **Railway** |
+| Database | PostgreSQL | **Supabase** |
 | File storage | Cloudinary (KTP/SIM photos) | — |
 | Payments | Xendit (split, QRIS/VA, disbursement) | — |
 | QR | backend `qrcode` + JWT signing; frontend `html5-qrcode` scan | — |
@@ -167,7 +167,7 @@ All domain tables carry `koperasi_id` (FK) and timestamps. Cross-tenant: `distri
 | Var | Purpose |
 |---|---|
 | `MODE` | `dev` (mock payments) or `prod` (real Xendit) |
-| `DATABASE_URL` | MySQL connection (Railway) |
+| `DATABASE_URL` | PostgreSQL connection string (Supabase) — format: `postgresql+asyncpg://USER:PASSWORD@HOST:PORT/DBNAME` |
 | `JWT_SECRET` | token signing |
 | `XENDIT_SECRET_KEY` | Xendit API (prod only) |
 | `XENDIT_CALLBACK_TOKEN` | verify Xendit webhooks (prod only) |
@@ -222,7 +222,7 @@ Ordered by **dependency + ascending complexity** (easiest first). Each phase sho
 | # | Phase | Goal / Deliverables | Tables / Modules | Done when |
 |---|---|---|---|---|
 | 1 | **Scaffold & config** | FastAPI app factory, settings loading `MODE`, CORS, `/health` endpoint, requirements.txt | `main.py`, `core/config.py` | `GET /health` returns 200; `MODE` read from env |
-| 2 | **DB & migrations setup** | SQLAlchemy engine/session (UTC `time_zone=+00:00`), `Base`, Alembic init, Railway MySQL connection. **Verify MySQL is 8.0+** (CHECK constraints) and provision a **restricted app DB user** (no privileges on `audit_log` beyond INSERT/SELECT — set in phase 15) | `db/`, `alembic/` | empty migration runs; `SELECT VERSION()` ≥ 8.0 |
+| 2 | **DB & migrations setup** | `create_async_engine` + `AsyncSession` (`DateTime(timezone=True)`, UTC), `Base`, Alembic init (sync URL for migrations), Supabase PostgreSQL connection. Provision a **restricted app DB role** in Supabase (no UPDATE/DELETE on `audit_log` — set in phase 15) | `db/`, `alembic/` | empty migration runs; `SELECT version()` confirms PostgreSQL |
 | 3 | **Core models + first migration** | `koperasi`, `users`, `farmers`, `financing_partners` (**with `user_id` FK**), `koperasi_funds`, base enums. **All money cols `Numeric(18,2)`, weights `Numeric(10,3)`, `nik VARCHAR(16) UNIQUE`** — verify before migrating. `users.koperasi_id` for manager/admin only | `models/` | tables exist with correct DECIMAL types; no FLOAT money cols |
 | 4 | **Auth** | JWT signup/login, password hashing (bcrypt), role enum on token | `core/security.py`, `api/auth.py` | login returns a JWT with role + koperasi_id |
 | 5 | **Tenant scoping + RBAC** | `get_current_user`, tenant-scope dependency (farmer tenant = `farmers.koperasi_id`), role guards | `core/deps.py` | cross-tenant access blocked; no domain query runs unscoped |
