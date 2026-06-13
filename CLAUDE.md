@@ -1,4 +1,4 @@
-# MELATI JAYA — Koperasi Tani Platform
+# KOPERALINK — Koperasi Tani Platform
 
 > Guidance for Claude Code and the team building this project. Business + technical reference.
 > Source-of-truth planning docs live in `context/` — this file summarizes and operationalizes them. Do not duplicate hackathon rules here; see `context/case study.md` and `context/guidebook.md`.
@@ -7,7 +7,7 @@
 
 ## 1. Project Overview
 
-**MELATI JAYA** is a multi-tenant digital platform for Indonesian farmer cooperatives (koperasi tani). It replaces the error-prone Excel bookkeeping that loses stock data, and adds a B2B marketplace, member lending, and anti-fraud auditing.
+**KOPERALINK** is a multi-tenant digital platform for Indonesian farmer cooperatives (koperasi tani). It replaces the error-prone Excel bookkeeping that loses stock data, and adds a B2B marketplace, member lending, and anti-fraud auditing.
 
 **Context:** Built for **TechnoScape 2026** (BNCC) fintech hackathon — onsite final **12–14 June 2026**. Judged on two axes:
 - **Technology:** architecture/design (25%), feature completeness (25%), low-bug/accuracy (25%), real implementation (20%).
