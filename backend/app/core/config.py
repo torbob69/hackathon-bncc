@@ -15,8 +15,12 @@ class Settings(BaseSettings):
     JWT_SECRET: str
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    FRONTEND_URL: str = "https://vercel.com/torbobs-projects/koperalink"
-    ALLOWED_ORIGINS: list[str] = [FRONTEND_URL, "https://vercel.com/torbobs-projects/koperalink"]
+    FRONTEND_URL: str = "https://koperalink.vercel.app"
+    ALLOWED_ORIGINS: list[str] = [
+        FRONTEND_URL,
+        "http://localhost:5173",
+        "https://koperalink.vercel.app",
+    ]
     XENDIT_SECRET_KEY: str = ""
     XENDIT_CALLBACK_TOKEN: str = ""
     SUPABASE_URL: str = ""
