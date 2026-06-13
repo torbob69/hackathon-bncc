@@ -32,7 +32,7 @@ from app.models.users import Farmer, User
 logger = logging.getLogger(__name__)
 
 # tokenUrl must match the login endpoint path so Swagger "Authorize" resolves it.
-_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login/form")
 
 # ---------------------------------------------------------------------------
 # CurrentUser context object
@@ -105,6 +105,8 @@ async def get_current_user(
     result = await session.execute(select(User).where(User.id == user_id))
     user = result.scalar_one_or_none()
     if user is None:
+        raise _401
+    if user.status != "active":
         raise _401
 
     # --- 3. Resolve tenant ---

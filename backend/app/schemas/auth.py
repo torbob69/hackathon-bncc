@@ -33,6 +33,49 @@ class SignupRequest(BaseModel):
         return v
 
 
+class FarmerSignupRequest(BaseModel):
+    """Public farmer application signup."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    koperasi_id: int
+    nik: str = Field(..., pattern=r"^[0-9]{16}$")
+    address: str | None = None
+    phone: str | None = Field(default=None, max_length=20)
+    ktp_photo_url: str | None = None
+
+
+class DistributorSignupRequest(BaseModel):
+    """Public distributor signup."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    company_name: str = Field(..., min_length=1, max_length=255)
+    address: str | None = None
+    phone: str | None = Field(default=None, max_length=20)
+
+
+class CreateUserRequest(BaseModel):
+    """Privileged user creation by platform/admin actors."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr
+    password: str = Field(..., min_length=8)
+    role: UserRole
+    koperasi_id: int | None = None
+    phone: str | None = Field(default=None, max_length=20)
+
+    @field_validator("koperasi_id")
+    @classmethod
+    def _validate_koperasi_for_role(cls, v: int | None, info) -> int | None:
+        role = info.data.get("role")
+        if role in (UserRole.manager, UserRole.admin) and v is None:
+            raise ValueError("koperasi_id is required for manager and admin roles")
+        return v
+
+
 class LoginRequest(BaseModel):
     """Used for POST /auth/login (JSON body variant)."""
 

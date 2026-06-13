@@ -54,6 +54,34 @@ class RejectRequest(BaseModel):
     )
 
 
+class RepayRequest(BaseModel):
+    """Body for POST /loans/{loan_id}/repay — farmer submits an installment payment."""
+
+    installment_id: int = Field(
+        ...,
+        description="PK of the LoanInstallment row to pay.",
+    )
+    amount: Decimal | None = Field(
+        None,
+        gt=0,
+        description=(
+            "Amount to pay in IDR (Decimal, > 0).  "
+            "If omitted, defaults to the full remaining balance "
+            "(amount_due - amount_paid) of the installment."
+        ),
+    )
+
+
+class SeizeRequest(BaseModel):
+    """Body for POST /admin/loans/{loan_id}/seize — admin seizes collateral."""
+
+    reason: str = Field(
+        ...,
+        min_length=3,
+        description="Reason for collateral seizure (minimum 3 characters).",
+    )
+
+
 # ---------------------------------------------------------------------------
 # Response schemas
 # ---------------------------------------------------------------------------

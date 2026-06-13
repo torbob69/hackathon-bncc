@@ -43,13 +43,13 @@ depends_on: Union[str, Sequence[str], None] = None
 #   role instead of `postgres`, add a second permission boundary for that role:
 #
 #       -- run once in the Supabase SQL editor, as the table owner:
-#       CREATE ROLE melati_app LOGIN PASSWORD '<choose-a-strong-secret>'
+#       CREATE ROLE koperalink_app LOGIN PASSWORD '<choose-a-strong-secret>'
 #           NOSUPERUSER NOCREATEDB NOCREATEROLE;
-#       GRANT USAGE ON SCHEMA public TO melati_app;
-#       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO melati_app;
-#       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO melati_app;
-#       REVOKE UPDATE, DELETE ON TABLE audit_log FROM melati_app;   -- §3.8 line
-#       -- then point DATABASE_URL at melati_app (keep the owner role for migrations).
+#       GRANT USAGE ON SCHEMA public TO koperalink_app;
+#       GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO koperalink_app;
+#       GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO koperalink_app;
+#       REVOKE UPDATE, DELETE ON TABLE audit_log FROM koperalink_app;   -- §3.8 line
+#       -- then point DATABASE_URL at koperalink_app (keep the owner role for migrations).
 #
 #   This is optional: the trigger above already makes audit_log append-only for
 #   the role currently in use. No manual step is required for correctness.

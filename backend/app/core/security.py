@@ -1,12 +1,13 @@
 """
 JWT and password hashing utilities.
 
-- Password hashing: passlib CryptContext(bcrypt)
+- Password hashing: the `bcrypt` library directly (passlib is avoided — its
+  1.7.4 release runs an internal self-test that crashes against bcrypt >= 4.1).
 - JWT: python-jose (HS256 by default)
 
-bcrypt silently truncates passwords longer than 72 bytes.  We SHA-256 the
-password first (produces 32 bytes hex — always under the limit) so that long
-passwords are not silently equivalent to their first-72-byte prefix.
+bcrypt truncates passwords longer than 72 bytes.  We SHA-256 the password first
+(produces 64 hex chars — always under the limit) so that long passwords are not
+silently equivalent to their first-72-byte prefix.
 """
 from __future__ import annotations
 
@@ -14,25 +15,24 @@ import hashlib
 import logging
 from datetime import UTC, datetime, timedelta
 
+import bcrypt
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _pre_hash(plain: str) -> str:
+def _pre_hash(plain: str) -> bytes:
     """
     bcrypt truncates at 72 bytes.  Pre-hashing with SHA-256 ensures every
-    character of the user's password contributes to the stored hash.
+    character of the user's password contributes to the stored hash.  Returns
+    the 64-char hex digest as ASCII bytes (always < 72 bytes).
     """
-    return hashlib.sha256(plain.encode("utf-8")).hexdigest()
+    return hashlib.sha256(plain.encode("utf-8")).hexdigest().encode("ascii")
 
 
 # ---------------------------------------------------------------------------
@@ -40,13 +40,17 @@ def _pre_hash(plain: str) -> str:
 # ---------------------------------------------------------------------------
 
 def hash_password(plain: str) -> str:
-    """Return a bcrypt hash of *plain*."""
-    return _pwd_context.hash(_pre_hash(plain))
+    """Return a bcrypt hash of *plain* (utf-8 str, safe to store in a CHAR col)."""
+    return bcrypt.hashpw(_pre_hash(plain), bcrypt.gensalt()).decode("ascii")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    """Return True if *plain* matches *hashed*."""
-    return _pwd_context.verify(_pre_hash(plain), hashed)
+    """Return True if *plain* matches the stored bcrypt *hashed*."""
+    try:
+        return bcrypt.checkpw(_pre_hash(plain), hashed.encode("ascii"))
+    except (ValueError, TypeError):
+        # malformed/empty stored hash — treat as a non-match rather than raising
+        return False
 
 
 # ---------------------------------------------------------------------------

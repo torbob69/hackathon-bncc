@@ -32,7 +32,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser, get_tenant_id, require_role
 from app.db.engine import get_session
 from app.models.enums import LoanStatus, UserRole
-from app.schemas.loans import LoanApplyRequest, LoanDetailOut, LoanOut, RejectRequest
+from app.schemas.loans import LoanApplyRequest, LoanDetailOut, LoanOut, RejectRequest, SeizeRequest
 from app.services.ledger import InsufficientFunds, PoolInvariantViolation
 from app.services.loans import (
     ExceedsCreditLimit,
@@ -41,7 +41,9 @@ from app.services.loans import (
     approve_loan,
     get_loan,
     list_loans,
+    mark_loans_past_due,
     reject_loan,
+    seize_loan,
 )
 
 logger = logging.getLogger(__name__)
@@ -196,6 +198,135 @@ async def reject_loan_admin(
     async with session.begin():
         try:
             loan = await reject_loan(
+                session,
+                koperasi_id=koperasi_id,
+                loan_id=loan_id,
+                admin_user_id=current_user.user_id,
+                reason=body.reason,
+            )
+        except LoanNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
+        except LoanStateError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+            ) from exc
+
+    return LoanOut.model_validate(loan)
+
+
+# ---------------------------------------------------------------------------
+# POST /admin/loans/{loan_id}/mark-past-due
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{loan_id}/mark-past-due", response_model=LoanOut)
+async def mark_loan_past_due(
+    loan_id: int,
+    current_user: CurrentUser = Depends(require_role(UserRole.admin)),
+    session: AsyncSession = Depends(get_session),
+) -> LoanOut:
+    """
+    Mark a single active loan as past_due if it has any overdue unpaid installments.
+
+    Scans unpaid installments with due_date < today.  If any are found, those
+    installments are set to 'late', the loan transitions to 'past_due', and a
+    LoanStatusHistory + audit entry are written.
+
+    Returns the (potentially updated) loan summary.  If no installments are
+    overdue the loan is returned unchanged (HTTP 200).
+    """
+    koperasi_id = get_tenant_id(current_user)
+
+    async with session.begin():
+        affected = await mark_loans_past_due(
+            session,
+            koperasi_id=koperasi_id,
+            loan_id=loan_id,
+            actor_user_id=current_user.user_id,
+        )
+
+    if affected:
+        return LoanOut.model_validate(affected[0])
+
+    # Loan exists but has no overdue installments — return current state
+    try:
+        loan, _insts, _cs = await get_loan(
+            session, koperasi_id=koperasi_id, loan_id=loan_id
+        )
+    except LoanNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    return LoanOut.model_validate(loan)
+
+
+# ---------------------------------------------------------------------------
+# POST /admin/loans/past-due/sweep
+# ---------------------------------------------------------------------------
+
+
+@router.post("/past-due/sweep", response_model=dict)
+async def sweep_past_due_loans(
+    current_user: CurrentUser = Depends(require_role(UserRole.admin)),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """
+    Sweep ALL active loans in the koperasi and transition overdue ones to past_due.
+
+    Iterates every active loan and checks for unpaid installments with
+    due_date < today.  For each loan with overdue installments:
+      - Marks those installments as 'late'.
+      - Transitions the loan to 'past_due'.
+      - Writes LoanStatusHistory and audit entries.
+
+    Returns {"affected": <count>} — the number of loans transitioned.
+    """
+    koperasi_id = get_tenant_id(current_user)
+
+    async with session.begin():
+        affected = await mark_loans_past_due(
+            session,
+            koperasi_id=koperasi_id,
+            loan_id=None,  # full tenant sweep
+            actor_user_id=current_user.user_id,
+        )
+
+    logger.info(
+        "admin.loans.sweep_past_due: koperasi=%d affected=%d",
+        koperasi_id,
+        len(affected),
+    )
+    return {"affected": len(affected)}
+
+
+# ---------------------------------------------------------------------------
+# POST /admin/loans/{loan_id}/seize
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{loan_id}/seize", response_model=LoanOut)
+async def seize_loan_admin(
+    loan_id: int,
+    body: SeizeRequest,
+    current_user: CurrentUser = Depends(require_role(UserRole.admin)),
+    session: AsyncSession = Depends(get_session),
+) -> LoanOut:
+    """
+    Seize the collateral for a non-performing loan.
+
+    Transitions active or past_due loans to 'seized' status.  Records the
+    seizure reason in LoanStatusHistory and audit_log.  No ledger movement is
+    written (collateral seizure is a status-only transition).
+
+    HTTP 404 if the loan does not exist under this koperasi.
+    HTTP 409 if the loan is not in 'active' or 'past_due' status.
+    """
+    koperasi_id = get_tenant_id(current_user)
+
+    async with session.begin():
+        try:
+            loan = await seize_loan(
                 session,
                 koperasi_id=koperasi_id,
                 loan_id=loan_id,

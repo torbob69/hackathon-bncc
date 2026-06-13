@@ -30,8 +30,23 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser, get_tenant_id, require_role
 from app.db.engine import get_session
 from app.models.enums import UserRole
-from app.schemas.loans import LoanApplyRequest, LoanOut
-from app.services.loans import apply_loan, list_loans
+from app.schemas.loans import (
+    CreditScoreOut,
+    InstallmentOut,
+    LoanApplyRequest,
+    LoanDetailOut,
+    LoanOut,
+    RepayRequest,
+)
+from app.services.ledger import InsufficientFunds, PoolInvariantViolation
+from app.services.loans import (
+    LoanNotFound,
+    LoanStateError,
+    apply_loan,
+    get_loan,
+    list_loans,
+    repay_installment,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,3 +122,126 @@ async def list_my_loans(
         farmer_id=farmer_id,
     )
     return [LoanOut.model_validate(loan) for loan in loans]
+
+
+# ---------------------------------------------------------------------------
+# GET /loans/{loan_id} — farmer views their own loan detail
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{loan_id}", response_model=LoanDetailOut)
+async def get_my_loan(
+    loan_id: int,
+    current_user: CurrentUser = Depends(require_role(UserRole.farmer)),
+    session: AsyncSession = Depends(get_session),
+) -> LoanDetailOut:
+    """
+    Return full detail for one of the authenticated farmer's loans.
+
+    Includes the installment schedule and the latest credit score snapshot.
+    Returns 404 if the loan does not exist or belongs to a different farmer /
+    koperasi.
+    """
+    koperasi_id = get_tenant_id(current_user)
+    farmer_id = current_user.user_id
+
+    try:
+        loan, installments, credit_score = await get_loan(
+            session, koperasi_id=koperasi_id, loan_id=loan_id
+        )
+    except LoanNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+
+    # Farmer may only see their own loans
+    if loan.farmer_id != farmer_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Loan not found.")
+
+    return LoanDetailOut(
+        **LoanOut.model_validate(loan).model_dump(),
+        installments=[InstallmentOut.model_validate(i) for i in installments],
+        latest_credit_score=(
+            CreditScoreOut.model_validate(credit_score) if credit_score else None
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /loans/{loan_id}/repay — farmer submits an installment repayment
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{loan_id}/repay", response_model=LoanDetailOut)
+async def repay_loan_installment(
+    loan_id: int,
+    body: RepayRequest,
+    current_user: CurrentUser = Depends(require_role(UserRole.farmer)),
+    session: AsyncSession = Depends(get_session),
+) -> LoanDetailOut:
+    """
+    Farmer pays one installment on their loan.
+
+    The specified installment must be in 'unpaid' or 'late' status.
+    Amount defaults to the full remaining balance when omitted.
+    Overpayment beyond the remaining balance is rejected with HTTP 409.
+
+    The repayment CREDITS the Loan Pool (inbound money from the farmer).
+    No payment-provider call is made; the ledger entry is the record.
+
+    Returns updated full loan detail (installments + credit score).
+    """
+    koperasi_id = get_tenant_id(current_user)
+    farmer_id = current_user.user_id
+
+    async with session.begin():
+        try:
+            loan, _installment = await repay_installment(
+                session,
+                koperasi_id=koperasi_id,
+                loan_id=loan_id,
+                installment_id=body.installment_id,
+                payer_user_id=farmer_id,
+                amount=body.amount,
+            )
+        except LoanNotFound as exc:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)
+            ) from exc
+        except LoanStateError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, detail=str(exc)
+            ) from exc
+        except InsufficientFunds as exc:
+            # A credit cannot fail due to insufficient funds, but map it defensively
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+        except PoolInvariantViolation as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+            ) from exc
+
+        # Farmer may only repay their own loans
+        if loan.farmer_id != farmer_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Loan not found."
+            )
+
+    # Re-fetch full detail (installments may have changed status in this txn)
+    loan, installments, credit_score = await get_loan(
+        session, koperasi_id=koperasi_id, loan_id=loan_id
+    )
+
+    logger.info(
+        "loan.repay: farmer=%d koperasi=%d loan_id=%d installment_id=%d",
+        farmer_id,
+        koperasi_id,
+        loan_id,
+        body.installment_id,
+    )
+    return LoanDetailOut(
+        **LoanOut.model_validate(loan).model_dump(),
+        installments=[InstallmentOut.model_validate(i) for i in installments],
+        latest_credit_score=(
+            CreditScoreOut.model_validate(credit_score) if credit_score else None
+        ),
+    )

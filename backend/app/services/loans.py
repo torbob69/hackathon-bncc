@@ -448,6 +448,331 @@ async def list_loans(
     return list(result.scalars().all())
 
 
+async def repay_installment(
+    session: AsyncSession,
+    *,
+    koperasi_id: int,
+    loan_id: int,
+    installment_id: int,
+    payer_user_id: int,
+    amount: Decimal | None = None,
+) -> tuple[Loan, LoanInstallment]:
+    """
+    Record one installment repayment against the Loan Pool (credit direction).
+
+    Business rules:
+      - Loan must belong to koperasi_id and be in 'active' or 'past_due' status.
+      - Installment must belong to the loan + koperasi, and be in 'unpaid' or
+        'late' status (not already 'paid').
+      - amount defaults to the full remaining balance (amount_due - amount_paid).
+      - Overpayment beyond remaining balance is rejected (LoanStateError).
+      - Repayment CREDITS the Loan Pool — inbound money restores the pool.
+        No payment-provider disbursement call; ledger entry only.
+      - Idempotent via external_idempotency_key=f'loan-repay-{installment_id}'.
+      - If all installments on the loan reach 'paid' status → loan.status = paid.
+      - LoanStatusHistory + audit written for every repayment (and for full payoff).
+      - Does NOT commit; caller owns the transaction.
+
+    Raises:
+        LoanNotFound       — loan does not exist under this koperasi.
+        LoanStateError     — wrong loan/installment status, or overpayment.
+    """
+    # --- 1. Lock loan row (tenant-scoped) ---
+    loan = await _get_loan_for_update(session, koperasi_id=koperasi_id, loan_id=loan_id)
+
+    if loan.status not in (LoanStatus.active, LoanStatus.past_due):
+        raise LoanStateError(
+            f"Loan {loan_id} is in status '{loan.status.value}' — "
+            "repayments are only accepted for active or past_due loans."
+        )
+
+    # --- 2. Fetch the installment (tenant-scoped) ---
+    inst_result = await session.execute(
+        select(LoanInstallment).where(
+            LoanInstallment.id == installment_id,
+            LoanInstallment.loan_id == loan_id,
+            LoanInstallment.koperasi_id == koperasi_id,
+        )
+    )
+    installment = inst_result.scalar_one_or_none()
+    if installment is None:
+        raise LoanStateError(
+            f"Installment {installment_id} not found for loan {loan_id} "
+            f"in koperasi {koperasi_id}."
+        )
+    if installment.status == InstallmentStatus.paid:
+        raise LoanStateError(
+            f"Installment {installment_id} is already fully paid."
+        )
+
+    # --- 3. Resolve payment amount ---
+    amount_due: Decimal = Decimal(str(installment.amount_due))
+    amount_paid_so_far: Decimal = Decimal(str(installment.amount_paid))
+    remaining: Decimal = amount_due - amount_paid_so_far
+
+    if amount is None:
+        pay_amount = remaining
+    else:
+        pay_amount = Decimal(str(amount))
+        if pay_amount > remaining:
+            raise LoanStateError(
+                f"Payment amount {pay_amount} exceeds remaining balance "
+                f"{remaining} for installment {installment_id}."
+            )
+
+    # --- 4. Ledger entry — CREDIT the Loan Pool ---
+    entry = await post_ledger_entry(
+        session,
+        koperasi_id=koperasi_id,
+        pool=LedgerPool.loan,
+        type=LedgerType.loan_repayment,
+        amount=pay_amount,
+        direction=LedgerDirection.credit,
+        reference_type="loan_installment",
+        reference_id=installment_id,
+        external_idempotency_key=f"loan-repay-{installment_id}",
+    )
+
+    # --- 5. Update installment ---
+    now_utc = datetime.now(UTC)
+    new_amount_paid: Decimal = amount_paid_so_far + pay_amount
+    installment.amount_paid = new_amount_paid  # type: ignore[assignment]
+
+    if new_amount_paid >= amount_due:
+        installment.status = InstallmentStatus.paid
+        installment.paid_at = now_utc
+        installment.ledger_entry_id = entry.id
+
+    await session.flush()
+
+    # --- 6. Audit: individual repayment ---
+    await write_audit(
+        session,
+        actor_user_id=payer_user_id,
+        koperasi_id=koperasi_id,
+        action="loan_repayment",
+        entity_type="loan_installment",
+        entity_id=installment_id,
+        after={
+            "loan_id": loan_id,
+            "installment_id": installment_id,
+            "amount_paid": pay_amount,
+            "new_amount_paid": new_amount_paid,
+            "remaining_after": amount_due - new_amount_paid,
+            "installment_status": installment.status.value,
+            "ledger_entry_id": entry.id,
+        },
+    )
+
+    # --- 7. Check if entire loan is now fully repaid ---
+    all_inst_result = await session.execute(
+        select(LoanInstallment).where(
+            LoanInstallment.loan_id == loan_id,
+            LoanInstallment.koperasi_id == koperasi_id,
+        )
+    )
+    all_installments = list(all_inst_result.scalars().all())
+
+    all_paid = all(i.status == InstallmentStatus.paid for i in all_installments)
+    if all_paid:
+        old_status = loan.status
+        loan.status = LoanStatus.paid
+        session.add(
+            LoanStatusHistory(
+                loan_id=loan.id,
+                koperasi_id=koperasi_id,
+                old_status=old_status,
+                new_status=LoanStatus.paid,
+                changed_by=payer_user_id,
+                reason="All installments fully paid.",
+            )
+        )
+        await write_audit(
+            session,
+            actor_user_id=payer_user_id,
+            koperasi_id=koperasi_id,
+            action="loan_fully_repaid",
+            entity_type="loan",
+            entity_id=loan.id,
+            after={"status": LoanStatus.paid.value},
+        )
+
+    await session.flush()
+
+    logger.info(
+        "loan.repay: koperasi=%d loan_id=%d installment_id=%d amount=%s "
+        "fully_repaid=%s",
+        koperasi_id,
+        loan_id,
+        installment_id,
+        pay_amount,
+        all_paid,
+    )
+    return loan, installment
+
+
+async def mark_loans_past_due(
+    session: AsyncSession,
+    *,
+    koperasi_id: int,
+    loan_id: int | None = None,
+    actor_user_id: int,
+) -> list[Loan]:
+    """
+    Mark overdue installments as 'late' and transition affected loans to 'past_due'.
+
+    Sweeps all active loans in the koperasi (or one specific loan when loan_id is
+    given) for unpaid installments whose due_date < today.  For each such loan:
+      - Sets all overdue unpaid installments to InstallmentStatus.late.
+      - Sets loan.status = past_due (if not already).
+      - Writes a LoanStatusHistory row (active → past_due).
+      - Writes an audit entry.
+
+    Returns the list of loans that were transitioned (may be empty).
+    Tenant-scoped: only loans where koperasi_id matches are touched.
+    Does NOT commit; caller owns the transaction.
+    """
+    today = date.today()
+
+    # Build query for candidate loans
+    loan_q = select(Loan).where(
+        Loan.koperasi_id == koperasi_id,
+        Loan.status == LoanStatus.active,
+    )
+    if loan_id is not None:
+        loan_q = loan_q.where(Loan.id == loan_id)
+
+    loans_result = await session.execute(loan_q.with_for_update())
+    candidate_loans: list[Loan] = list(loans_result.scalars().all())
+
+    affected: list[Loan] = []
+
+    for loan in candidate_loans:
+        # Find unpaid installments that are past due for this loan
+        overdue_result = await session.execute(
+            select(LoanInstallment).where(
+                LoanInstallment.loan_id == loan.id,
+                LoanInstallment.koperasi_id == koperasi_id,
+                LoanInstallment.due_date < today,
+                LoanInstallment.status == InstallmentStatus.unpaid,
+            )
+        )
+        overdue_installments = list(overdue_result.scalars().all())
+
+        if not overdue_installments:
+            continue
+
+        # Mark each overdue installment as late
+        for inst in overdue_installments:
+            inst.status = InstallmentStatus.late
+
+        # Transition loan status
+        old_status = loan.status
+        loan.status = LoanStatus.past_due
+        session.add(
+            LoanStatusHistory(
+                loan_id=loan.id,
+                koperasi_id=koperasi_id,
+                old_status=old_status,
+                new_status=LoanStatus.past_due,
+                changed_by=actor_user_id,
+                reason=f"Installment(s) overdue as of {today.isoformat()}.",
+            )
+        )
+
+        await write_audit(
+            session,
+            actor_user_id=actor_user_id,
+            koperasi_id=koperasi_id,
+            action="loan_marked_past_due",
+            entity_type="loan",
+            entity_id=loan.id,
+            after={
+                "status": LoanStatus.past_due.value,
+                "overdue_installment_ids": [i.id for i in overdue_installments],
+                "as_of": today.isoformat(),
+            },
+        )
+
+        affected.append(loan)
+
+    if affected:
+        await session.flush()
+
+    logger.info(
+        "loan.mark_past_due: koperasi=%d loan_id=%s affected_count=%d",
+        koperasi_id,
+        loan_id,
+        len(affected),
+    )
+    return affected
+
+
+async def seize_loan(
+    session: AsyncSession,
+    *,
+    koperasi_id: int,
+    loan_id: int,
+    admin_user_id: int,
+    reason: str,
+) -> Loan:
+    """
+    Seize the collateral for a non-performing loan.
+
+    Allowable transitions: active → seized  or  past_due → seized.
+    Any other current status raises LoanStateError.
+
+    No ledger movement is written — collateral seizure is a status-only
+    transition recorded in LoanStatusHistory and audit_log.
+
+    Raises:
+        LoanNotFound   — loan does not exist under this koperasi.
+        LoanStateError — loan is not in active or past_due status.
+    """
+    loan = await _get_loan_for_update(session, koperasi_id=koperasi_id, loan_id=loan_id)
+
+    if loan.status not in (LoanStatus.active, LoanStatus.past_due):
+        raise LoanStateError(
+            f"Loan {loan_id} is in status '{loan.status.value}' — "
+            "only active or past_due loans can be seized."
+        )
+
+    old_status = loan.status
+    loan.status = LoanStatus.seized
+
+    session.add(
+        LoanStatusHistory(
+            loan_id=loan.id,
+            koperasi_id=koperasi_id,
+            old_status=old_status,
+            new_status=LoanStatus.seized,
+            changed_by=admin_user_id,
+            reason=reason,
+        )
+    )
+
+    await write_audit(
+        session,
+        actor_user_id=admin_user_id,
+        koperasi_id=koperasi_id,
+        action="loan_seized",
+        entity_type="loan",
+        entity_id=loan.id,
+        after={"status": LoanStatus.seized.value, "reason": reason},
+    )
+
+    await session.flush()
+
+    logger.info(
+        "loan.seized: koperasi=%d loan_id=%d admin=%d reason=%r",
+        koperasi_id,
+        loan_id,
+        admin_user_id,
+        reason,
+    )
+    return loan
+
+
 async def get_loan(
     session: AsyncSession,
     *,

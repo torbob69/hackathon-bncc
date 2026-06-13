@@ -13,6 +13,7 @@ class UserRole(str, enum.Enum):
 class FarmerStatus(str, enum.Enum):
     pending = "pending"
     active = "active"
+    rejected = "rejected"
 
 
 class IntakeStatus(str, enum.Enum):
