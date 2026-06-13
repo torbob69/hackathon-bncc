@@ -23,6 +23,19 @@ class Settings(BaseSettings):
     SUPABASE_SERVICE_KEY: str = ""
     LOG_SQL: bool = False
 
+    # Activation token
+    ACTIVATION_TOKEN_EXPIRE_HOURS: int = 48
+
+    # Fonnte (WhatsApp)
+    FONNTE_TOKEN: str = ""
+
+    # Gmail SMTP
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_NAME: str = "KoperaLink"
+
     @field_validator("JWT_SECRET")
     @classmethod
     def _strong_secret(cls, v: str) -> str:

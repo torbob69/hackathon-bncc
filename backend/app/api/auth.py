@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import logging
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, get_current_user
@@ -14,8 +15,8 @@ from app.db.engine import get_session
 from app.models.enums import FarmerStatus, UserRole
 from app.models.users import Distributor, Farmer, User
 from app.schemas.auth import (
+    ActivateAccountRequest,
     DistributorSignupRequest,
-    FarmerSignupRequest,
     LoginRequest,
     SignupRequest,
     TokenResponse,
@@ -30,15 +31,25 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def _assert_unique_identity(
     session: AsyncSession,
     *,
-    email: str,
+    email: str | None = None,
+    phone: str | None = None,
     nik: str | None = None,
 ) -> None:
-    existing_email = await session.execute(select(User).where(User.email == email))
-    if existing_email.scalar_one_or_none() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Email is already registered.",
-        )
+    if email is not None:
+        existing_email = await session.execute(select(User).where(User.email == email))
+        if existing_email.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email is already registered.",
+            )
+
+    if phone is not None:
+        existing_phone = await session.execute(select(User).where(User.phone == phone))
+        if existing_phone.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Phone number is already registered.",
+            )
 
     if nik is not None:
         existing_nik = await session.execute(select(Farmer).where(Farmer.nik == nik))
@@ -68,7 +79,7 @@ async def signup(
     if body.role == UserRole.farmer:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Use /auth/signup/farmer so the farmer profile is created.",
+            detail="Farmer accounts are created by admin. Use the admin endpoint.",
         )
 
     await _assert_unique_identity(session, email=str(body.email))
@@ -88,46 +99,6 @@ async def signup(
 
 
 @router.post(
-    "/signup/farmer",
-    response_model=UserOut,
-    status_code=status.HTTP_201_CREATED,
-    summary="Submit a farmer membership application",
-)
-async def signup_farmer(
-    body: FarmerSignupRequest,
-    session: AsyncSession = Depends(get_session),
-) -> UserOut:
-    await _assert_unique_identity(session, email=str(body.email), nik=body.nik)
-
-    user = User(
-        name=body.name,
-        email=str(body.email),
-        phone=body.phone,
-        role=UserRole.farmer,
-        koperasi_id=None,
-        password_hash=hash_password(body.password),
-        status="pending",
-    )
-    session.add(user)
-    await session.flush()
-
-    session.add(
-        Farmer(
-            user_id=user.id,
-            koperasi_id=body.koperasi_id,
-            nik=body.nik,
-            address=body.address,
-            ktp_photo_url=body.ktp_photo_url,
-            status=FarmerStatus.pending,
-        )
-    )
-    await session.commit()
-    await session.refresh(user)
-    logger.info("Farmer application created: user_id=%d koperasi_id=%d", user.id, body.koperasi_id)
-    return UserOut.model_validate(user)
-
-
-@router.post(
     "/signup/distributor",
     response_model=UserOut,
     status_code=status.HTTP_201_CREATED,
@@ -137,11 +108,15 @@ async def signup_distributor(
     body: DistributorSignupRequest,
     session: AsyncSession = Depends(get_session),
 ) -> UserOut:
-    await _assert_unique_identity(session, email=str(body.email))
+    await _assert_unique_identity(
+        session,
+        email=str(body.email) if body.email else None,
+        phone=body.phone,
+    )
 
     user = User(
         name=body.name,
-        email=str(body.email),
+        email=str(body.email) if body.email else None,
         phone=body.phone,
         role=UserRole.distributor,
         koperasi_id=None,
@@ -162,12 +137,12 @@ async def signup_distributor(
     return UserOut.model_validate(user)
 
 
-@router.post("/login", response_model=TokenResponse, summary="Login with email + password")
+@router.post("/login", response_model=TokenResponse, summary="Login with email or phone + password")
 async def login(
     body: LoginRequest,
     session: AsyncSession = Depends(get_session),
 ) -> TokenResponse:
-    return await _authenticate(str(body.email), body.password, session)
+    return await _authenticate(body.identifier, body.password, session)
 
 
 @router.post(
@@ -183,6 +158,49 @@ async def login_form(
     return await _authenticate(form.username, form.password, session)
 
 
+@router.post(
+    "/activate",
+    summary="Activate account with token and set password",
+)
+async def activate_account(
+    body: ActivateAccountRequest,
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    result = await session.execute(
+        select(User).where(User.activation_token == body.token)
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid activation token.",
+        )
+
+    if user.activation_token_expires_at is not None:
+        if user.activation_token_expires_at < datetime.now(UTC):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Activation token has expired.",
+            )
+
+    if user.status != "pending_activation":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Account is already activated.",
+        )
+
+    user.password_hash = hash_password(body.password)
+    user.status = "active"
+    user.activation_token = None
+    user.activation_token_expires_at = None
+
+    session.add(user)
+    await session.commit()
+
+    return {"ok": True, "message": "Akun berhasil diaktifkan."}
+
+
 @router.get("/me", response_model=UserOut, summary="Get the current user")
 async def me(
     current_user: CurrentUser = Depends(get_current_user),
@@ -195,15 +213,17 @@ async def me(
     return UserOut.model_validate(user)
 
 
-async def _authenticate(email: str, password: str, session: AsyncSession) -> TokenResponse:
+async def _authenticate(identifier: str, password: str, session: AsyncSession) -> TokenResponse:
     _401 = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect email or password.",
+        detail="Incorrect credentials.",
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    result = await session.execute(select(User).where(User.email == email))
-    user = result.scalar_one_or_none()
+    result = await session.execute(
+        select(User).where(or_(User.email == identifier, User.phone == identifier)).limit(1)
+    )
+    user = result.scalars().first()
     if user is None or not verify_password(password, user.password_hash):
         raise _401
     if user.status != "active":

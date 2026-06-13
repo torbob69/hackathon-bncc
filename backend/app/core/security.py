@@ -44,8 +44,10 @@ def hash_password(plain: str) -> str:
     return bcrypt.hashpw(_pre_hash(plain), bcrypt.gensalt()).decode("ascii")
 
 
-def verify_password(plain: str, hashed: str) -> bool:
+def verify_password(plain: str, hashed: str | None) -> bool:
     """Return True if *plain* matches the stored bcrypt *hashed*."""
+    if hashed is None:
+        return False
     try:
         return bcrypt.checkpw(_pre_hash(plain), hashed.encode("ascii"))
     except (ValueError, TypeError):

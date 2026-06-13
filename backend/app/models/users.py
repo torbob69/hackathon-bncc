@@ -17,12 +17,23 @@ class User(Base):
         sa.Enum(UserRole, name="user_role", create_type=True, values_callable=lambda obj: [e.value for e in obj]), nullable=False
     )
     name: Mapped[str] = mapped_column(sa.String(255), nullable=False)
-    email: Mapped[str] = mapped_column(sa.String(255), nullable=False, unique=True)
+    email: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     phone: Mapped[str | None] = mapped_column(sa.String(20), nullable=True)
-    password_hash: Mapped[str] = mapped_column(sa.String(255), nullable=False)
+    password_hash: Mapped[str | None] = mapped_column(sa.String(255), nullable=True)
     status: Mapped[str] = mapped_column(sa.String(50), nullable=False, default="active", server_default="active")
+    activation_token: Mapped[str | None] = mapped_column(sa.String(128), nullable=True)
+    activation_token_expires_at: Mapped[sa.DateTime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[sa.DateTime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        sa.Index("ix_users_email_unique", "email", unique=True, postgresql_where=sa.text("email IS NOT NULL")),
+        sa.Index("ix_users_phone_unique", "phone", unique=True, postgresql_where=sa.text("phone IS NOT NULL")),
+        sa.Index("ix_users_activation_token_unique", "activation_token", unique=True, postgresql_where=sa.text("activation_token IS NOT NULL")),
+        sa.CheckConstraint("email IS NOT NULL OR phone IS NOT NULL", name="chk_users_contact"),
     )
 
 

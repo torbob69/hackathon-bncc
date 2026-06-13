@@ -33,28 +33,15 @@ class SignupRequest(BaseModel):
         return v
 
 
-class FarmerSignupRequest(BaseModel):
-    """Public farmer application signup."""
-
-    name: str = Field(..., min_length=1, max_length=255)
-    email: EmailStr
-    password: str = Field(..., min_length=8)
-    koperasi_id: int
-    nik: str = Field(..., pattern=r"^[0-9]{16}$")
-    address: str | None = None
-    phone: str | None = Field(default=None, max_length=20)
-    ktp_photo_url: str | None = None
-
-
 class DistributorSignupRequest(BaseModel):
     """Public distributor signup."""
 
     name: str = Field(..., min_length=1, max_length=255)
-    email: EmailStr
+    phone: str = Field(..., max_length=20)
     password: str = Field(..., min_length=8)
     company_name: str = Field(..., min_length=1, max_length=255)
     address: str | None = None
-    phone: str | None = Field(default=None, max_length=20)
+    email: EmailStr | None = None
 
 
 class CreateUserRequest(BaseModel):
@@ -79,7 +66,7 @@ class CreateUserRequest(BaseModel):
 class LoginRequest(BaseModel):
     """Used for POST /auth/login (JSON body variant)."""
 
-    email: EmailStr
+    identifier: str = Field(..., description="Email address or phone number")
     password: str
 
 
@@ -88,6 +75,13 @@ class TokenResponse(BaseModel):
 
     access_token: str
     token_type: str = "bearer"
+
+
+class ActivateAccountRequest(BaseModel):
+    """Used for POST /auth/activate."""
+
+    token: str
+    password: str = Field(..., min_length=8)
 
 
 class UserOut(BaseModel):
@@ -100,7 +94,8 @@ class UserOut(BaseModel):
 
     id: int
     name: str
-    email: str
+    email: str | None
+    phone: str | None
     role: UserRole
     koperasi_id: int | None
     status: str

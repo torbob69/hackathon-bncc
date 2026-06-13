@@ -50,13 +50,13 @@ class CurrentUser:
         koperasi_id  — Resolved tenant:
                          * int  → for manager/admin (from users) or farmer (from farmers).
                          * None → for distributor / financing_partner / platform_admin.
-        email        — User's email address (convenient for logging/audit).
+        email        — User's email address; may be None for phone-only accounts.
     """
 
     user_id: int
     role: UserRole
     koperasi_id: int | None
-    email: str
+    email: str | None
 
 
 # ---------------------------------------------------------------------------

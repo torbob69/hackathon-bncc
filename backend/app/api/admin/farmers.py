@@ -7,6 +7,7 @@ Auth          : every endpoint requires UserRole.admin (via Depends(require_role
 Tenant        : resolved from the admin's JWT via get_tenant_id(current_user)
 
 Endpoints:
+  POST   /admin/farmers              — admin creates farmer account in-person
   GET    /admin/farmers              — list farmers (optional ?status= filter)
   GET    /admin/farmers/{user_id}    — get single farmer profile
   POST   /admin/farmers/{user_id}/approve — approve a pending farmer
@@ -16,16 +17,20 @@ Business logic lives in app.services.farmers; this module is a thin HTTP layer.
 """
 from __future__ import annotations
 
+import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.core.deps import CurrentUser, get_tenant_id, require_role
 from app.db.engine import get_session
 from app.models.enums import FarmerStatus, UserRole
-from app.schemas.farmers import FarmerOut, RejectRequest
+from app.schemas.farmers import AdminCreateFarmerRequest, FarmerOut, RejectRequest
 from app.services import farmers as farmer_service
+from app.services import notifier
 
 router = APIRouter(prefix="/admin/farmers", tags=["admin:farmers"])
 
@@ -58,6 +63,59 @@ def _to_farmer_out(farmer_row, user_row) -> FarmerOut:
             "phone": user_row.phone,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /admin/farmers  (create farmer in-person)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "",
+    response_model=FarmerOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Admin creates a farmer account (sends activation link)",
+)
+async def create_farmer(
+    body: AdminCreateFarmerRequest,
+    background_tasks: BackgroundTasks,
+    current_user: CurrentUser = Depends(require_role(UserRole.admin)),
+    session: AsyncSession = Depends(get_session),
+) -> FarmerOut:
+    """
+    Create a farmer account in-person.
+
+    - Admin verifies identity on the spot; farmer status is set to active
+      immediately (no further approval step needed).
+    - A time-limited activation token is generated and sent to the farmer
+      via email and/or WhatsApp so they can set their password.
+    - Returns the new farmer profile.
+    """
+    koperasi_id = get_tenant_id(current_user)
+
+    # Generate activation token
+    token = secrets.token_urlsafe(32)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=settings.ACTIVATION_TOKEN_EXPIRE_HOURS)
+
+    farmer, user = await farmer_service.create_farmer(
+        session,
+        koperasi_id,
+        current_user.user_id,
+        name=body.name,
+        nik=body.nik,
+        address=body.address,
+        phone=body.phone,
+        email=str(body.email) if body.email else None,
+        ktp_photo_url=body.ktp_photo_url,
+        activation_token=token,
+        activation_token_expires_at=expires_at,
+    )
+
+    activation_url = f"{settings.FRONTEND_URL}/activate?token={token}"
+
+    background_tasks.add_task(notifier.send_activation_whatsapp, body.phone, activation_url, body.name)
+
+    return _to_farmer_out(farmer, user)
 
 
 # ---------------------------------------------------------------------------

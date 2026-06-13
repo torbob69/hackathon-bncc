@@ -3,12 +3,13 @@ Pydantic v2 schemas for farmer-related endpoints.
 
 FarmerOut — full farmer profile with user fields joined in (name, email, phone).
 RejectRequest — body for the admin reject endpoint.
+AdminCreateFarmerRequest — body for admin in-person farmer creation.
 """
 from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from app.models.enums import FarmerStatus
 
@@ -39,7 +40,7 @@ class FarmerOut(BaseModel):
 
     # --- Joined from users row ---
     name: str
-    email: str
+    email: str | None
     phone: str | None
 
 
@@ -47,3 +48,14 @@ class RejectRequest(BaseModel):
     """Body for POST /admin/farmers/{user_id}/reject."""
 
     reason: str = Field(..., min_length=3, description="Rejection reason (min 3 chars)")
+
+
+class AdminCreateFarmerRequest(BaseModel):
+    """Body for POST /admin/farmers — admin creates farmer account in person."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    nik: str = Field(..., pattern=r"^[0-9]{16}$")
+    phone: str = Field(..., max_length=20)
+    address: str | None = None
+    email: EmailStr | None = None
+    ktp_photo_url: str | None = None

@@ -26,11 +26,128 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.enums import FarmerStatus
+from app.models.enums import FarmerStatus, UserRole
 from app.models.users import Farmer, User
 from app.services.audit import write_audit
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Write helpers — farmer creation by admin
+# ---------------------------------------------------------------------------
+
+
+async def create_farmer(
+    session: AsyncSession,
+    koperasi_id: int,
+    admin_user_id: int,
+    *,
+    name: str,
+    nik: str,
+    address: str | None,
+    phone: str | None,
+    email: str | None,
+    ktp_photo_url: str | None,
+    activation_token: str,
+    activation_token_expires_at: datetime,
+) -> tuple[Farmer, User]:
+    """
+    Create a farmer account in-person by an admin.
+
+    Steps (all within one transaction):
+      1. Uniqueness checks for email, phone, nik.
+      2. Create User with pending_activation status and no password_hash.
+      3. Flush to get user.id.
+      4. Create Farmer (already verified in person → status=active).
+      5. Write audit entry (action='farmer_created_by_admin').
+      6. Commit and refresh both objects.
+
+    Returns (Farmer, User) tuple.
+
+    Raises:
+        HTTP 409 — email, phone, or nik already registered.
+    """
+    # 1. Uniqueness checks
+    if email is not None:
+        existing_email = await session.execute(select(User).where(User.email == email))
+        if existing_email.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Email is already registered.",
+            )
+
+    if phone is not None:
+        existing_phone = await session.execute(select(User).where(User.phone == phone))
+        if existing_phone.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Phone number is already registered.",
+            )
+
+    existing_nik = await session.execute(select(Farmer).where(Farmer.nik == nik))
+    if existing_nik.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="NIK is already registered.",
+        )
+
+    # 2. Create User
+    user = User(
+        name=name,
+        email=email,
+        phone=phone,
+        role=UserRole.farmer,
+        koperasi_id=None,
+        password_hash=None,
+        status="pending_activation",
+        activation_token=activation_token,
+        activation_token_expires_at=activation_token_expires_at,
+    )
+    session.add(user)
+
+    # 3. Flush to get user.id
+    await session.flush()
+
+    # 4. Create Farmer (admin verified in person → active immediately)
+    now_utc = datetime.now(timezone.utc)
+    farmer = Farmer(
+        user_id=user.id,
+        koperasi_id=koperasi_id,
+        nik=nik,
+        address=address,
+        ktp_photo_url=ktp_photo_url,
+        status=FarmerStatus.active,
+        verified_by=admin_user_id,
+        verified_at=now_utc,
+    )
+    session.add(farmer)
+
+    # 5. Audit entry
+    await write_audit(
+        session,
+        actor_user_id=admin_user_id,
+        koperasi_id=koperasi_id,
+        action="farmer_created_by_admin",
+        entity_type="farmer",
+        entity_id=user.id,
+        before={},
+        after={"nik": nik, "koperasi_id": koperasi_id},
+    )
+
+    # 6. Commit and refresh
+    await session.commit()
+    await session.refresh(farmer)
+    await session.refresh(user)
+
+    logger.info(
+        "farmer created by admin: user_id=%s koperasi_id=%s nik=%s by admin=%s",
+        user.id,
+        koperasi_id,
+        nik,
+        admin_user_id,
+    )
+    return farmer, user
 
 
 # ---------------------------------------------------------------------------
