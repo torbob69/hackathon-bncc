@@ -6,6 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.api.admin.farmers import router as admin_farmers_router
+from app.api.admin.funds import router as admin_funds_router
+from app.api.admin.loans import router as admin_loans_router
+from app.api.admin.oversight import router as admin_oversight_router
+from app.api.auth import router as auth_router
+from app.api.loans import router as farmer_loans_router
 from app.core.config import settings
 from app.db.engine import engine
 
@@ -37,6 +43,14 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
 )
+
+
+app.include_router(auth_router)
+app.include_router(admin_farmers_router)
+app.include_router(admin_funds_router)
+app.include_router(admin_loans_router)
+app.include_router(admin_oversight_router)
+app.include_router(farmer_loans_router)
 
 
 @app.get("/health")

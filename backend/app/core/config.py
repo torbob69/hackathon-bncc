@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     ALLOWED_ORIGINS: list[str] = [FRONTEND_URL]
     XENDIT_SECRET_KEY: str = ""
     XENDIT_CALLBACK_TOKEN: str = ""
-    CLOUDINARY_URL: str = ""
+    SUPABASE_URL: str = ""
+    SUPABASE_SERVICE_KEY: str = ""
     LOG_SQL: bool = False
 
     @field_validator("JWT_SECRET")
