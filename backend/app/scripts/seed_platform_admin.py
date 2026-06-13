@@ -19,6 +19,7 @@ import asyncio
 import os
 import secrets
 
+from dotenv import load_dotenv
 from sqlalchemy import select
 
 from app.core.security import hash_password
@@ -26,6 +27,7 @@ from app.db.engine import AsyncSessionLocal, engine
 from app.models.enums import UserRole
 from app.models.users import User
 
+load_dotenv()
 
 async def seed_platform_admin() -> None:
     email = os.getenv("PLATFORM_ADMIN_EMAIL", "admin@koperalink.id").strip().lower()
