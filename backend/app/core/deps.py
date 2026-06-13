@@ -22,10 +22,8 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.core.security import decode_access_token
-from app.db.engine import get_session
+from app.db.engine import AsyncSessionLocal, get_session
 from app.models.enums import UserRole
 from app.models.users import Farmer, User
 
@@ -66,13 +64,18 @@ class CurrentUser:
 
 async def get_current_user(
     token: str = Depends(_oauth2_scheme),
-    session: AsyncSession = Depends(get_session),
 ) -> CurrentUser:
     """
     FastAPI dependency that:
       1. Decodes + validates the Bearer JWT.
       2. Loads the User row from the DB.
       3. Resolves the canonical koperasi_id for the caller's role.
+
+    Uses its own dedicated session (not the request-scoped one) so that the
+    handler's session arrives with no auto-begun transaction.  Route handlers
+    use `async with session.begin():` to manage their own transaction boundary;
+    sharing the session with auth queries would auto-begin a transaction first
+    and cause InvalidRequestError on the handler's session.begin() call.
 
     Raises:
         HTTP 401 — missing/invalid/expired token, unknown user.
@@ -84,7 +87,7 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # --- 1. Decode token ---
+    # --- 1. Decode token (no DB needed) ---
     try:
         payload = decode_access_token(token)
     except JWTError:
@@ -101,48 +104,49 @@ async def get_current_user(
     except (TypeError, ValueError):
         raise _401
 
-    # --- 2. Load user from DB ---
-    result = await session.execute(select(User).where(User.id == user_id))
-    user = result.scalar_one_or_none()
-    if user is None:
-        raise _401
-    if user.status != "active":
-        raise _401
+    # --- 2 & 3. Load user + resolve tenant in a dedicated auth session ---
+    async with AsyncSessionLocal() as auth_session:
+        result = await auth_session.execute(select(User).where(User.id == user_id))
+        user = result.scalar_one_or_none()
+        if user is None:
+            raise _401
+        if user.status != "active":
+            raise _401
 
-    # --- 3. Resolve tenant ---
-    role: UserRole = user.role
-    koperasi_id: int | None
+        role: UserRole = user.role
+        koperasi_id: int | None
 
-    if role in (UserRole.manager, UserRole.admin):
-        if user.koperasi_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Manager/admin account has no koperasi assigned — contact platform admin.",
+        if role in (UserRole.manager, UserRole.admin):
+            if user.koperasi_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Manager/admin account has no koperasi assigned — contact platform admin.",
+                )
+            koperasi_id = user.koperasi_id
+
+        elif role == UserRole.farmer:
+            farmer_result = await auth_session.execute(
+                select(Farmer).where(Farmer.user_id == user_id)
             )
-        koperasi_id = user.koperasi_id
+            farmer = farmer_result.scalar_one_or_none()
+            if farmer is None:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Farmer profile not found for this user.",
+                )
+            koperasi_id = farmer.koperasi_id
 
-    elif role == UserRole.farmer:
-        # Canonical tenant lives on farmers.koperasi_id, NOT users.koperasi_id
-        farmer_result = await session.execute(
-            select(Farmer).where(Farmer.user_id == user_id)
-        )
-        farmer = farmer_result.scalar_one_or_none()
-        if farmer is None:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Farmer profile not found for this user.",
-            )
-        koperasi_id = farmer.koperasi_id
+        else:
+            # distributor / financing_partner / platform_admin — cross-tenant
+            koperasi_id = None
 
-    else:
-        # distributor / financing_partner / platform_admin — cross-tenant
-        koperasi_id = None
+        email = user.email
 
     return CurrentUser(
         user_id=user_id,
         role=role,
         koperasi_id=koperasi_id,
-        email=user.email,
+        email=email,
     )
 
 

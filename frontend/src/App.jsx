@@ -1,121 +1,181 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import { Component } from "react";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import "./index.css";
+import { useAuth } from "./hooks/useAuth";
+import { ToastProvider } from "./hooks/useToast.jsx";
 
-function App() {
-  const [count, setCount] = useState(0)
+import LoginPage from "./pages/Login";
+import ActivatePage from "./pages/Activate";
+import FarmerDashboard from "./pages/Farmer";
+import ManagerDashboard from "./pages/Manager";
+import AdminDashboard from "./pages/Admin";
+import FinancingDashboard from "./pages/Financing";
+import PlatformDashboard from "./pages/Platform";
+import DistributorDashboard from "./pages/Distributor";
 
-  return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+import RequireRole from "./guards/RequireRole";
+
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 32, fontFamily: 'monospace', background: '#fff1f0', minHeight: '100dvh' }}>
+          <div style={{ fontWeight: 700, fontSize: '1.125rem', color: '#cf1322', marginBottom: 12 }}>
+            Terjadi kesalahan rendering
+          </div>
+          <pre style={{ whiteSpace: 'pre-wrap', fontSize: '0.8125rem', color: '#555', background: '#fff', padding: 16, borderRadius: 8, border: '1px solid #ffa39e' }}>
+            {this.state.error?.message}
+            {'\n\n'}
+            {this.state.error?.stack}
+          </pre>
+          <button
+            style={{ marginTop: 16, padding: '8px 20px', background: '#1677ff', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600 }}
+            onClick={() => this.setState({ error: null })}
+          >
+            Coba lagi
+          </button>
         </div>
-        <div>
-          <h1 className="bg-blue-500 text-xl p-4">Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2 className="">Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+      );
+    }
+    return this.props.children;
+  }
 }
 
-export default App
+function LoadingScreen() {
+  return (
+    <div style={{
+      display: 'flex',
+      height: '100dvh',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'column',
+      gap: 16,
+      background: 'var(--bg)',
+    }}>
+      <div style={{
+        width: 48,
+        height: 48,
+        background: 'var(--primary)',
+        borderRadius: 12,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontWeight: 900,
+        fontSize: '1.25rem',
+        color: 'white',
+        letterSpacing: '-0.03em',
+      }}>
+        KL
+      </div>
+      <div className="spinner spinner-lg" aria-label="Memuat..." />
+    </div>
+  );
+}
+
+function AppContent() {
+  const { user, loading, login, logout } = useAuth();
+
+  if (loading) return <LoadingScreen />;
+
+  const getDashboardPath = (role) => {
+    if (role === 'distributor') return '/marketplace';
+    if (role === 'platform_admin') return '/app/platform';
+    if (role === 'financing_partner') return '/app/financing';
+    return `/app/${role}`;
+  };
+
+  return (
+    <Routes>
+      {/* Public routes */}
+      <Route
+        path="/"
+        element={user ? <Navigate to={getDashboardPath(user.role)} replace /> : <LoginPage onLogin={login} />}
+      />
+      <Route path="/activate" element={<ActivatePage />} />
+
+      {/* Farmer */}
+      <Route
+        path="/app/farmer/*"
+        element={
+          <RequireRole user={user} allowedRoles={['farmer']}>
+            <FarmerDashboard user={user} onLogout={logout} />
+          </RequireRole>
+        }
+      />
+
+      {/* Manager */}
+      <Route
+        path="/app/manager/*"
+        element={
+          <RequireRole user={user} allowedRoles={['manager']}>
+            <ManagerDashboard user={user} onLogout={logout} />
+          </RequireRole>
+        }
+      />
+
+      {/* Admin */}
+      <Route
+        path="/app/admin/*"
+        element={
+          <RequireRole user={user} allowedRoles={['admin']}>
+            <AdminDashboard user={user} onLogout={logout} />
+          </RequireRole>
+        }
+      />
+
+      {/* Financing Partner */}
+      <Route
+        path="/app/financing/*"
+        element={
+          <RequireRole user={user} allowedRoles={['financing_partner']}>
+            <FinancingDashboard user={user} onLogout={logout} />
+          </RequireRole>
+        }
+      />
+
+      {/* Platform Admin */}
+      <Route
+        path="/app/platform/*"
+        element={
+          <RequireRole user={user} allowedRoles={['platform_admin']}>
+            <PlatformDashboard user={user} onLogout={logout} />
+          </RequireRole>
+        }
+      />
+
+      {/* Distributor / Marketplace */}
+      <Route
+        path="/marketplace/*"
+        element={
+          <RequireRole user={user} allowedRoles={['distributor']}>
+            <DistributorDashboard user={user} onLogout={logout} />
+          </RequireRole>
+        }
+      />
+
+      {/* Catch-all */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <BrowserRouter>
+        <ToastProvider>
+          <ErrorBoundary>
+            <AppContent />
+          </ErrorBoundary>
+        </ToastProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
+  );
+}

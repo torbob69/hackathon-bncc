@@ -3,6 +3,8 @@ Pydantic v2 schemas for authentication endpoints.
 """
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 
 from app.models.enums import UserRole
@@ -61,6 +63,16 @@ class CreateUserRequest(BaseModel):
         if role in (UserRole.manager, UserRole.admin) and v is None:
             raise ValueError("koperasi_id is required for manager and admin roles")
         return v
+
+
+class CreateKoperasiStaffRequest(BaseModel):
+    """Platform admin creates an admin or manager user for a specific koperasi."""
+
+    name: str = Field(..., min_length=1, max_length=255)
+    phone: str = Field(..., max_length=20)
+    password: str = Field(..., min_length=8)
+    role: Literal["admin", "manager"]
+    email: EmailStr | None = None
 
 
 class LoginRequest(BaseModel):

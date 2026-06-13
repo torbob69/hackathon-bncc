@@ -208,6 +208,86 @@ async def post_apbn_grant(
 
 
 # ---------------------------------------------------------------------------
+# POST /admin/funds/marginal-dummy
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/funds/marginal-dummy",
+    response_model=ApbnGrantResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Dummy top up for Marginal Profit Pool (Testing only)",
+)
+async def post_marginal_dummy(
+    body: ApbnGrantRequest,
+    request: Request,
+    current_user: CurrentUser = Depends(_admin_dep),
+    session: AsyncSession = Depends(get_session),
+) -> ApbnGrantResponse:
+    """
+    Simulate profit injection to the Marginal Profit Pool for Hackathon demo/testing.
+    Uses LedgerType.refund to bypass the APBN constraint.
+    """
+    from app.services.ledger import post_ledger_entry
+    from app.models.enums import LedgerDirection
+
+    koperasi_id = get_tenant_id(current_user)
+    amount = Decimal(str(body.amount))
+    ip = request.client.host if request.client else None
+
+    try:
+        async with session.begin():
+            entry = await post_ledger_entry(
+                session,
+                koperasi_id=koperasi_id,
+                pool=LedgerPool.marginal_profit,
+                type=LedgerType.refund,
+                amount=amount,
+                direction=LedgerDirection.credit,
+                reference_type="dummy_marginal_injection",
+                reference_id=None,
+                external_idempotency_key=body.idempotency_key,
+            )
+
+            await write_audit(
+                session,
+                actor_user_id=current_user.user_id,
+                koperasi_id=koperasi_id,
+                action="dummy_marginal_injection",
+                entity_type="koperasi_funds",
+                entity_id=koperasi_id,
+                after={
+                    "amount": str(amount),
+                    "note": body.note,
+                    "idempotency_key": body.idempotency_key,
+                    "ledger_entry_id": entry.id,
+                },
+                ip=ip,
+            )
+
+    except PoolInvariantViolation as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Pool invariant violation: {exc}",
+        ) from exc
+    except InsufficientFunds as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+
+    funds_result = await session.execute(
+        select(KoperasiFunds).where(KoperasiFunds.koperasi_id == koperasi_id)
+    )
+    funds = funds_result.scalar_one()
+
+    return ApbnGrantResponse(
+        ledger_entry=LedgerEntryOut.model_validate(entry),
+        funds=FundsOut.model_validate(funds),
+    )
+
+
+# ---------------------------------------------------------------------------
 # GET /admin/ledger
 # ---------------------------------------------------------------------------
 

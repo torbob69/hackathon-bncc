@@ -1,0 +1,814 @@
+====================================================================
+  KOPERALINK — Demo Seed Data
+  Generated for hackathon demo · Password semua akun: Koperalink2026!
+====================================================================
+
+  Total koperasi       : 20
+  Total admin          : 20
+  Total manajer        : 20
+  Total petani         : 20
+  Total mitra pembiayaan: 20
+
+====================================================================
+  KOPERASI + STAFF + PETANI
+====================================================================
+
+#01  Koperasi Tani Melati Jaya
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Jakarta Selatan
+  Alamat   : Jl. Raya Pasar Minggu No. 1, Pasar Minggu
+  DB ID    : 3
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Budi Santoso
+    Email  : admin01@koperalink.id
+    HP     : 081211100001
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Siti Aminah
+    Email  : manager01@koperalink.id
+    HP     : 081211200001
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Ahmad Fauzi
+    HP     : 081211300001
+    NIK    : 3174021506900001
+    Alamat : Jl. Kebun Anggrek No. 3
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#02  Koperasi Subur Makmur
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Bogor
+  Alamat   : Jl. Sudirman No. 45, Tanah Sareal
+  DB ID    : 4
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Dewi Rahayu
+    Email  : admin02@koperalink.id
+    HP     : 081211100002
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Joko Widodo
+    Email  : manager02@koperalink.id
+    HP     : 081211200002
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Suparman
+    HP     : 081211300002
+    NIK    : 3201021506900002
+    Alamat : Jl. Raya Cisalak No. 7
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#03  Koperasi Tani Setia Kawan
+--------------------------------------------------------------------
+  Tipe     : Koperasi Pertanian
+  Wilayah  : Bandung
+  Alamat   : Jl. Dipatiukur No. 12, Coblong
+  DB ID    : 5
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Agus Setiawan
+    Email  : admin03@koperalink.id
+    HP     : 081211100003
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Ratna Sari
+    Email  : manager03@koperalink.id
+    HP     : 081211200003
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Nurlaila
+    HP     : 081211300003
+    NIK    : 3273021506900003
+    Alamat : Jl. Cibeureum No. 12
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#04  Koperasi Hijau Lestari
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Yogyakarta
+  Alamat   : Jl. Malioboro No. 7, Gedong Tengen
+  DB ID    : 6
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Sri Wahyuni
+    Email  : admin04@koperalink.id
+    HP     : 081211100004
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Irwan Syah
+    Email  : manager04@koperalink.id
+    HP     : 081211200004
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Jumadi
+    HP     : 081211300004
+    NIK    : 3471021506900004
+    Alamat : Jl. Bantul Km 5
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#05  Koperasi Maju Bersama
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Surabaya
+  Alamat   : Jl. Pemuda No. 88, Gubeng
+  DB ID    : 7
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Hendra Kusuma
+    Email  : admin05@koperalink.id
+    HP     : 081211100005
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Endah Lestari
+    Email  : manager05@koperalink.id
+    HP     : 081211200005
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Marini Wulandari
+    HP     : 081211300005
+    NIK    : 3578021506900005
+    Alamat : Jl. Keputran No. 9
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#06  Koperasi Harapan Tani
+--------------------------------------------------------------------
+  Tipe     : Koperasi Pertanian
+  Wilayah  : Semarang
+  Alamat   : Jl. Gajahmada No. 22, Semarang Tengah
+  DB ID    : 8
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Rina Marlina
+    Email  : admin06@koperalink.id
+    HP     : 081211100006
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Fajar Nugraha
+    Email  : manager06@koperalink.id
+    HP     : 081211200006
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Sarimin
+    HP     : 081211300006
+    NIK    : 3374021506900006
+    Alamat : Jl. Tlogosari No. 4
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#07  Koperasi Tunas Muda
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Malang
+  Alamat   : Jl. Veteran No. 15, Lowokwaru
+  DB ID    : 9
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Eko Prasetyo
+    Email  : admin07@koperalink.id
+    HP     : 081211100007
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Mega Putri
+    Email  : manager07@koperalink.id
+    HP     : 081211200007
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Samsul Hadi
+    HP     : 081211300007
+    NIK    : 3573021506900007
+    Alamat : Jl. Sumbersari No. 11
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#08  Koperasi Sido Maju
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Solo
+  Alamat   : Jl. Slamet Riyadi No. 34, Laweyan
+  DB ID    : 10
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Yuni Astuti
+    Email  : admin08@koperalink.id
+    HP     : 081211100008
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Gunawan Hadi
+    Email  : manager08@koperalink.id
+    HP     : 081211200008
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Partini
+    HP     : 081211300008
+    NIK    : 3372021506900008
+    Alamat : Jl. Mojosongo No. 5
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#09  Koperasi Karya Tani
+--------------------------------------------------------------------
+  Tipe     : Koperasi Pertanian
+  Wilayah  : Medan
+  Alamat   : Jl. Gatot Subroto No. 5, Medan Petisah
+  DB ID    : 11
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Dedi Kurniawan
+    Email  : admin09@koperalink.id
+    HP     : 081211100009
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Novi Pramita
+    Email  : manager09@koperalink.id
+    HP     : 081211200009
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Mansur Lubis
+    HP     : 081211300009
+    NIK    : 1271021506900009
+    Alamat : Jl. Helvetia No. 2
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#10  Koperasi Bumi Pertiwi
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Makassar
+  Alamat   : Jl. Urip Sumoharjo No. 77, Panakkukang
+  DB ID    : 12
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Fitri Handayani
+    Email  : admin10@koperalink.id
+    HP     : 081211100010
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Rizky Ramadhan
+    Email  : manager10@koperalink.id
+    HP     : 081211200010
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Hasnah Binti
+    HP     : 081211300010
+    NIK    : 7371021506900010
+    Alamat : Jl. Antang Raya No. 6
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#11  Koperasi Sumber Rejeki
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Palembang
+  Alamat   : Jl. Kapten Rivai No. 19, Ilir Timur I
+  DB ID    : 13
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Rudi Hermawan
+    Email  : admin11@koperalink.id
+    HP     : 081211100011
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Putri Cahyani
+    Email  : manager11@koperalink.id
+    HP     : 081211200011
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Romlah
+    HP     : 081211300011
+    NIK    : 1671021506900011
+    Alamat : Jl. Demang Lebar Daun
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#12  Koperasi Tani Mandiri
+--------------------------------------------------------------------
+  Tipe     : Koperasi Pertanian
+  Wilayah  : Balikpapan
+  Alamat   : Jl. Jend. Sudirman No. 99, Balikpapan Utara
+  DB ID    : 14
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Lina Susanti
+    Email  : admin12@koperalink.id
+    HP     : 081211100012
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Surya Pratama
+    Email  : manager12@koperalink.id
+    HP     : 081211200012
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Supardi
+    HP     : 081211300012
+    NIK    : 6471021506900012
+    Alamat : Jl. Mulawarman No. 8
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#13  Koperasi Jaya Abadi
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Banjarmasin
+  Alamat   : Jl. Ahmad Yani No. 56, Banjarmasin Tengah
+  DB ID    : 15
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Anton Wijaya
+    Email  : admin13@koperalink.id
+    HP     : 081211100013
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Yanti Oktaviani
+    Email  : manager13@koperalink.id
+    HP     : 081211200013
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Juminten
+    HP     : 081211300013
+    NIK    : 6371021506900013
+    Alamat : Jl. A. Yani Km 3
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#14  Koperasi Rukun Makmur
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Pontianak
+  Alamat   : Jl. Tanjungpura No. 30, Pontianak Selatan
+  DB ID    : 16
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Sari Indah
+    Email  : admin14@koperalink.id
+    HP     : 081211100014
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Bagas Wicaksono
+    Email  : manager14@koperalink.id
+    HP     : 081211200014
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Samino
+    HP     : 081211300014
+    NIK    : 6171021506900014
+    Alamat : Jl. Imam Bonjol No. 15
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#15  Koperasi Berkah Tani
+--------------------------------------------------------------------
+  Tipe     : Koperasi Pertanian
+  Wilayah  : Pekanbaru
+  Alamat   : Jl. Sudirman No. 14, Sukajadi
+  DB ID    : 17
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Wahyu Nugroho
+    Email  : admin15@koperalink.id
+    HP     : 081211100015
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Intan Permata
+    Email  : manager15@koperalink.id
+    HP     : 081211200015
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Rohimah
+    HP     : 081211300015
+    NIK    : 1471021506900015
+    Alamat : Jl. Nanas No. 7
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#16  Koperasi Usaha Bersama
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Manado
+  Alamat   : Jl. Sam Ratulangi No. 8, Wenang
+  DB ID    : 18
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Ika Purwanti
+    Email  : admin16@koperalink.id
+    HP     : 081211100016
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Dimas Aditya
+    Email  : manager16@koperalink.id
+    HP     : 081211200016
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Hendrik Tamaela
+    HP     : 081211300016
+    NIK    : 7171021506900016
+    Alamat : Jl. Babe Palar No. 3
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#17  Koperasi Anugerah Tani
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Denpasar
+  Alamat   : Jl. Gajah Mada No. 23, Denpasar Barat
+  DB ID    : 19
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Bambang Sulistyo
+    Email  : admin17@koperalink.id
+    HP     : 081211100017
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Ayu Wandari
+    Email  : manager17@koperalink.id
+    HP     : 081211200017
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Ni Wayan Sumarni
+    HP     : 081211300017
+    NIK    : 5171021506900017
+    Alamat : Jl. Teuku Umar No. 10
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#18  Koperasi Mulya Tani
+--------------------------------------------------------------------
+  Tipe     : Koperasi Pertanian
+  Wilayah  : Kupang
+  Alamat   : Jl. El Tari No. 11, Kota Lama
+  DB ID    : 20
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Nita Sari
+    Email  : admin18@koperalink.id
+    HP     : 081211100018
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Reza Firmansyah
+    Email  : manager18@koperalink.id
+    HP     : 081211200018
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Dominikus Lao
+    HP     : 081211300018
+    NIK    : 5371021506900018
+    Alamat : Jl. Timor Raya No. 4
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#19  Koperasi Tani Bersatu
+--------------------------------------------------------------------
+  Tipe     : KUD
+  Wilayah  : Jayapura
+  Alamat   : Jl. Raya Sentani No. 3, Abepura
+  DB ID    : 21
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Teguh Santoso
+    Email  : admin19@koperalink.id
+    HP     : 081211100019
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Windi Astuti
+    Email  : manager19@koperalink.id
+    HP     : 081211200019
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Lukas Wally
+    HP     : 081211300019
+    NIK    : 9471021506900019
+    Alamat : Jl. Percetakan No. 2
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+#20  Koperasi Sejahtera Tani
+--------------------------------------------------------------------
+  Tipe     : KSP
+  Wilayah  : Mataram
+  Alamat   : Jl. Pejanggik No. 17, Cakranegara
+  DB ID    : 22
+  Status   : ADA
+
+  [ ADMIN ]
+    Nama   : Wulan Permatasari
+    Email  : admin20@koperalink.id
+    HP     : 081211100020
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ MANAJER ]
+    Nama   : Gilang Ramadhana
+    Email  : manager20@koperalink.id
+    HP     : 081211200020
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+  [ PETANI ]
+    Nama   : Suhartini Amir
+    HP     : 081211300020
+    NIK    : 5271021506900020
+    Alamat : Jl. Sriwijaya No. 9
+    Sandi  : Koperalink2026!
+    Status : ADA
+
+====================================================================
+  MITRA PEMBIAYAAN (cross-tenant)
+====================================================================
+
+#01  BRI Agroniaga Finance
+--------------------------------------------------------------------
+    Email Login   : partner01@koperalink.id
+    HP            : 081211400001
+    Kontak Email  : bri.agro@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#02  Bank Mandiri UMKM
+--------------------------------------------------------------------
+    Email Login   : partner02@koperalink.id
+    HP            : 081211400002
+    Kontak Email  : mandiri.umkm@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#03  BNI Tani Sejahtera
+--------------------------------------------------------------------
+    Email Login   : partner03@koperalink.id
+    HP            : 081211400003
+    Kontak Email  : bni.tani@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#04  PNM Pertanian
+--------------------------------------------------------------------
+    Email Login   : partner04@koperalink.id
+    HP            : 081211400004
+    Kontak Email  : pnm.pertanian@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#05  Bank Bukopin Agribisnis
+--------------------------------------------------------------------
+    Email Login   : partner05@koperalink.id
+    HP            : 081211400005
+    Kontak Email  : bukopin.agri@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#06  Sarana Multi Infrastruktur
+--------------------------------------------------------------------
+    Email Login   : partner06@koperalink.id
+    HP            : 081211400006
+    Kontak Email  : smi@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#07  LPMUKP Kemenkop
+--------------------------------------------------------------------
+    Email Login   : partner07@koperalink.id
+    HP            : 081211400007
+    Kontak Email  : lpmukp@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#08  Bank Jateng Agro
+--------------------------------------------------------------------
+    Email Login   : partner08@koperalink.id
+    HP            : 081211400008
+    Kontak Email  : jateng.agro@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#09  Koperasi Kredit Nusantara
+--------------------------------------------------------------------
+    Email Login   : partner09@koperalink.id
+    HP            : 081211400009
+    Kontak Email  : kkn@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#10  Fintek Tani Indonesia
+--------------------------------------------------------------------
+    Email Login   : partner10@koperalink.id
+    HP            : 081211400010
+    Kontak Email  : fintek.tani@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#11  Pegadaian Agraris
+--------------------------------------------------------------------
+    Email Login   : partner11@koperalink.id
+    HP            : 081211400011
+    Kontak Email  : pegadaian.agri@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#12  BPD Kalimantan Agro
+--------------------------------------------------------------------
+    Email Login   : partner12@koperalink.id
+    HP            : 081211400012
+    Kontak Email  : bpd.kalim@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#13  Permodalan Nasional Madani
+--------------------------------------------------------------------
+    Email Login   : partner13@koperalink.id
+    HP            : 081211400013
+    Kontak Email  : pnm2@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#14  Lembaga Keuangan Mikro Tani
+--------------------------------------------------------------------
+    Email Login   : partner14@koperalink.id
+    HP            : 081211400014
+    Kontak Email  : lkm.tani@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#15  Bank Sulutgo Pertanian
+--------------------------------------------------------------------
+    Email Login   : partner15@koperalink.id
+    HP            : 081211400015
+    Kontak Email  : sulutgo@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#16  Bali Finance Agribisnis
+--------------------------------------------------------------------
+    Email Login   : partner16@koperalink.id
+    HP            : 081211400016
+    Kontak Email  : bali.agri@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#17  NTT Development Finance
+--------------------------------------------------------------------
+    Email Login   : partner17@koperalink.id
+    HP            : 081211400017
+    Kontak Email  : ntt.dev@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#18  Papua Agro Investment
+--------------------------------------------------------------------
+    Email Login   : partner18@koperalink.id
+    HP            : 081211400018
+    Kontak Email  : papua.agro@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#19  Lombok Financing Partners
+--------------------------------------------------------------------
+    Email Login   : partner19@koperalink.id
+    HP            : 081211400019
+    Kontak Email  : lombok.fin@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+#20  Mitra Usaha Tani Mandiri
+--------------------------------------------------------------------
+    Email Login   : partner20@koperalink.id
+    HP            : 081211400020
+    Kontak Email  : mutm@example.id
+    Sandi         : Koperalink2026!
+    Status        : ADA
+
+====================================================================
+  QUICK REFERENCE — Login by Role
+====================================================================
+
+  Platform Admin   : admin@koperalink.id  (seed_platform_admin.py)
+  Admin Koperasi 1 : admin01@koperalink.id  /  081211100001
+  Manajer Kop. 1  : manager01@koperalink.id  /  081211200001
+  Petani Kop. 1   : 081211300001
+  Mitra Pembiayaan: partner01@koperalink.id  /  081211400001
+  Sandi semua akun: Koperalink2026!
+
+====================================================================
+
+
+=== ADDITIONAL SEED: 5 DISTRIBUTORS ===
+Company    : Agro Indo Nusantara
+Email      : distributor1@test.com
+Password   : password123
+-----------------------------------
+Company    : Sayur Mayur Jaya
+Email      : distributor2@test.com
+Password   : password123
+-----------------------------------
+Company    : Pusat Sayur Kota
+Email      : distributor3@test.com
+Password   : password123
+-----------------------------------
+Company    : Bumi Hijau Distribusi
+Email      : distributor4@test.com
+Password   : password123
+-----------------------------------
+Company    : Pasar Induk Sejahtera
+Email      : distributor5@test.com
+Password   : password123
+-----------------------------------

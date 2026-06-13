@@ -39,8 +39,10 @@ from app.services.commodities import (
 
 router = APIRouter(prefix="/commodities", tags=["commodities"])
 
-# Reusable role guard — manager or admin can manage the catalog.
+# Reusable role guards
 _mgr_admin = Depends(require_role(UserRole.manager, UserRole.admin))
+# Farmers need read-only access to their koperasi's catalog when submitting intakes.
+_reader = Depends(require_role(UserRole.farmer, UserRole.manager, UserRole.admin))
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +81,7 @@ async def create_one_commodity(
 
 @router.get("", response_model=list[CommodityOut])
 async def list_catalog(
-    current_user: CurrentUser = _mgr_admin,
+    current_user: CurrentUser = _reader,
     session: AsyncSession = Depends(get_session),
 ) -> list[CommodityOut]:
     """
@@ -100,7 +102,7 @@ async def list_catalog(
 @router.get("/{commodity_id}", response_model=CommodityOut)
 async def get_one_commodity(
     commodity_id: int,
-    current_user: CurrentUser = _mgr_admin,
+    current_user: CurrentUser = _reader,
     session: AsyncSession = Depends(get_session),
 ) -> CommodityOut:
     """Return a single commodity, scoped to the caller's koperasi."""

@@ -35,9 +35,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, get_current_user, get_tenant_id, require_role
+from app.core.security import hash_password
 from app.db.engine import get_session
 from app.models.enums import UserRole
 from app.models.koperasi import Koperasi, KoperasiFunds
+from app.models.users import User
+from app.schemas.auth import CreateKoperasiStaffRequest, UserOut
 from app.schemas.koperasi import (
     KoperasiCreate,
     KoperasiFundsOut,
@@ -277,6 +280,121 @@ async def get_koperasi(
     """
     koperasi = await _get_koperasi_or_404(session, koperasi_id)
     return KoperasiOut.model_validate(koperasi)
+
+
+# ---------------------------------------------------------------------------
+# POST /koperasi/{koperasi_id}/staff  — create admin or manager for a koperasi
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{koperasi_id}/staff",
+    response_model=UserOut,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create an admin or manager user for a koperasi (platform_admin only)",
+)
+async def create_koperasi_staff(
+    koperasi_id: int,
+    body: CreateKoperasiStaffRequest,
+    request: Request,
+    current_user: CurrentUser = Depends(_platform_admin_dep),
+    session: AsyncSession = Depends(get_session),
+) -> UserOut:
+    """
+    Create an admin or manager user assigned to the given koperasi.
+
+    Business rules:
+      - Only platform_admin may create staff users.
+      - The koperasi must exist.
+      - Phone must be unique across all users; email must be unique if provided.
+      - The user is created with status='active' immediately (no activation flow).
+      - An audit entry is written in the same transaction.
+    """
+    ip = request.client.host if request.client else None
+
+    async with session.begin():
+        # Verify koperasi exists.
+        await _get_koperasi_or_404(session, koperasi_id)
+
+        # Uniqueness checks.
+        if body.email:
+            email_conflict = await session.execute(
+                select(User).where(User.email == str(body.email))
+            )
+            if email_conflict.scalar_one_or_none() is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Email is already registered.",
+                )
+
+        phone_conflict = await session.execute(
+            select(User).where(User.phone == body.phone)
+        )
+        if phone_conflict.scalar_one_or_none() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Phone number is already registered.",
+            )
+
+        role = UserRole.admin if body.role == "admin" else UserRole.manager
+        user = User(
+            name=body.name,
+            email=str(body.email) if body.email else None,
+            phone=body.phone,
+            role=role,
+            koperasi_id=koperasi_id,
+            password_hash=hash_password(body.password),
+            status="active",
+        )
+        session.add(user)
+        await session.flush()
+
+        await write_audit(
+            session,
+            actor_user_id=current_user.user_id,
+            koperasi_id=koperasi_id,
+            action="staff_created",
+            entity_type="user",
+            entity_id=user.id,
+            after={"name": user.name, "role": body.role, "koperasi_id": koperasi_id},
+            ip=ip,
+        )
+
+    logger.info(
+        "staff_created: user_id=%d role=%s koperasi_id=%d actor=%d",
+        user.id, body.role, koperasi_id, current_user.user_id,
+    )
+    return UserOut.model_validate(user)
+
+
+# ---------------------------------------------------------------------------
+# GET /koperasi/{koperasi_id}/staff  — list admin & manager users for a koperasi
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{koperasi_id}/staff",
+    response_model=list[UserOut],
+    summary="List admin and manager users for a koperasi (platform_admin only)",
+)
+async def list_koperasi_staff(
+    koperasi_id: int,
+    current_user: CurrentUser = Depends(_platform_admin_dep),
+    session: AsyncSession = Depends(get_session),
+) -> list[UserOut]:
+    """Return all users with role admin or manager assigned to the given koperasi."""
+    await _get_koperasi_or_404(session, koperasi_id)
+
+    result = await session.execute(
+        select(User)
+        .where(
+            User.koperasi_id == koperasi_id,
+            User.role.in_([UserRole.admin, UserRole.manager]),
+        )
+        .order_by(User.role, User.name)
+    )
+    users = result.scalars().all()
+    return [UserOut.model_validate(u) for u in users]
 
 
 # ---------------------------------------------------------------------------
